@@ -1882,6 +1882,14 @@ function showNotification() {
         showToast('系统通知', '今日所有事项已完成');
     }
 }
+// 在 </script> 之前，加上这行：
+Object.assign(window, {
+    switchTab, filterSop, renderSopCards, toggleStep, changeStatus, createNewSop,
+    changeMonth, selectDate, toggleEventDone, addEvent, showAddPersonModal,
+    editPerson, deletePerson, openAssignModal, closeAssignModal, confirmAssign,
+    savePerson, closePersonModal, updateWasteChart, showNotification,
+    showToast, renderPersonnel, renderCalendar, renderTodayEvents
+});
 </script>
 
 </body>
