@@ -6,6 +6,7 @@
     <title>食品安全 SOP 管理系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
@@ -664,13 +665,11 @@
     </div>
 </div>
 
-<script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-    
-    // ==================== Supabase 配置 ====================
-    const SUPABASE_URL = 'https://pgphhfqiyqdnlrqurzvv.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_VD3xRTYLl_0CXCz_SR1jHw_17shJsXj';
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+<script>
+// ==================== Supabase 配置 ====================
+const SUPABASE_URL = 'https://pgphhfqiyqdnlrqurzvv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_VD3xRTYLl_0CXCz_SR1jHw_17shJsXj';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ==================== 全局状态 ====================
 let sopData = [];
@@ -1882,13 +1881,18 @@ function showNotification() {
         showToast('系统通知', '今日所有事项已完成');
     }
 }
-// 在 </script> 之前，加上这行：
+
+// ==================== 暴露函数到全局，供 HTML onclick 调用 ====================
 Object.assign(window, {
     switchTab, filterSop, renderSopCards, toggleStep, changeStatus, createNewSop,
     changeMonth, selectDate, toggleEventDone, addEvent, showAddPersonModal,
     editPerson, deletePerson, openAssignModal, closeAssignModal, confirmAssign,
     savePerson, closePersonModal, updateWasteChart, showNotification,
-    showToast, renderPersonnel, renderCalendar, renderTodayEvents
+    showToast, renderPersonnel, renderCalendar, renderTodayEvents,
+    renderRecentSop, renderWasteTable, updateMetrics, updateSopStatusChart,
+    updateWorkloadChart, updateTodoBadges, initCharts, loadSop, saveSop,
+    deleteSopDb, loadPersonnel, savePersonnel, deletePersonnelDb,
+    loadEvents, saveEvent, deleteEventDb, initDefaultData, updateTime
 });
 </script>
 
