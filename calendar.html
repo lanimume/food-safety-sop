@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务日历 - 食品安全 SOP 管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .calendar-day {
+            aspect-ratio: 1;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .calendar-day:hover:not(.empty) {
+            background-color: #ecfdf5;
+            transform: scale(1.1);
+            border-radius: 8px;
+        }
+        .calendar-day.today {
+            background-color: #10b981;
+            color: white;
+            border-radius: 8px;
+        }
+        .calendar-day.has-task::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            background: #ef4444;
+            border-radius: 50%;
+        }
+        .step-photo-preview {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .step-photo-preview img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        .task-card {
+            transition: all 0.3s;
+        }
+        .task-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<div id="loading" class="loading-overlay">
+    <div class="w-12 h-12 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
+    <p class="text-gray-600 font-medium">正在加载任务数据...</p>
+</div>
+
+<div class="flex h-screen overflow-hidden">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20 shadow-lg flex-shrink-0">
+        <div class="p-6 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-emerald-200 shadow-lg">
+                    <i class="fas fa-shield-halved text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-gray-900 leading-tight">食品安全 SOP</h1>
+                    <p class="text-xs text-gray-500">管理系统 v4.0</p>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+            <a href="index.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-chart-pie w-5"></i>数据概览
+            </a>
+            <a href="sop-templates.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-list-check w-5"></i>SOP流程模板
+            </a>
+            <a href="shift-schedule.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-users-gear w-5"></i>排班管理
+            </a>
+            <a href="calendar.html" class="nav-item active bg-emerald-50 text-emerald-700 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-calendar-days w-5"></i>任务日历
+            </a>
+            <a href="personnel.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-users w-5"></i>人员管理
+            </a>
+            <a href="metrics.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-gauge-high w-5"></i>指标监控
+            </a>
+        </nav>
+        <div class="p-4 border-t border-gray-100">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-4 text-white relative overflow-hidden">
+                <div class="relative z-10">
+                    <p class="text-xs opacity-90 mb-1">系统状态</p>
+                    <p class="font-bold text-sm">运行正常</p>
+                    <div class="mt-2 flex items-center gap-2 text-xs opacity-90">
+                        <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span>实时同步中
+                    </div>
+                </div>
+                <i class="fas fa-wifi absolute -right-2 -bottom-2 text-6xl opacity-10"></i>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto bg-gray-50/50">
+        <header class="sticky top-0 z-10 glass-effect border-b border-gray-200 px-8 py-4 flex items-center justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800">任务日历</h2>
+                <p class="text-sm text-gray-500 mt-1">查看人员当日应完成的 SOP 流程任务，逐项执行并拍照记录</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                    <i class="far fa-clock text-emerald-500"></i>
+                    <span id="current-time" class="text-sm font-medium text-gray-700"></span>
+                </div>
+                <div class="flex items-center gap-3 pl-4 border-l border-gray-200">
+                    <div class="w-9 h-9 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold text-sm">管</div>
+                    <div class="hidden md:block">
+                        <p class="text-sm font-medium text-gray-800">管理员</p>
+                        <p class="text-xs text-gray-500">食品安全部</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="p-8 space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Calendar -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-bold text-xl text-gray-800" id="calendar-month-year"></h3>
+                        <div class="flex gap-2">
+                            <button onclick="changeMonth(-1)" class="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <button onclick="changeMonth(1)" class="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-2 mb-2">
+                        <div class="text-center text-sm font-medium text-gray-400 py-2">日</div>
+                        <div class="text-center text-sm font-medium text-gray-400 py-2">一</div>
+                        <div class="text-center text-sm font-medium text-gray-400 py-2">二</div>
+                        <div class="text-center text-sm font-medium text-gray-400 py-2">三</div>
+                        <div class="text-center text-sm font-medium text-gray-400 py-2">四</div>
+                        <div class="text-center text-sm font-medium text-gray-400 py-2">五</div>
+                        <div class="text-center text-sm font-medium text-gray-400 py-2">六</div>
+                    </div>
+                    <div id="calendar-grid" class="grid grid-cols-7 gap-2"></div>
+                </div>
+
+                <!-- Today's Tasks -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 class="font-bold text-lg text-gray-800" id="selected-date-title">今日任务</h3>
+                                <p class="text-sm text-gray-500" id="selected-date-subtitle">2026-06-13</p>
+                            </div>
+                            <span id="task-count-badge" class="text-xs bg-red-100 text-red-600 px-3 py-1 rounded-lg font-medium">0 个任务</span>
+                        </div>
+                        <div id="task-list" class="space-y-4">
+                            <p class="text-sm text-gray-400 text-center py-8">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Task Detail Modal -->
+<div id="task-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center modal-overlay">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-2xl mx-4 shadow-2xl transform scale-95 opacity-0 transition-all duration-300 max-h-[90vh] overflow-y-auto" id="task-modal-content">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h3 class="font-bold text-xl text-gray-800" id="task-modal-title">任务详情</h3>
+                <p class="text-sm text-gray-500" id="task-modal-subtitle"></p>
+            </div>
+            <button onclick="closeTaskModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <div id="task-steps-container" class="space-y-4"></div>
+        <div class="flex gap-3 pt-4 border-t border-gray-100 mt-6">
+            <button onclick="closeTaskModal()" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors">关闭</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="fixed bottom-6 right-6 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3 max-w-sm">
+    <div class="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 flex-shrink-0">
+        <i class="fas fa-check"></i>
+    </div>
+    <div>
+        <h4 class="font-bold text-gray-800 text-sm" id="toast-title">操作成功</h4>
+        <p class="text-xs text-gray-500 mt-0.5" id="toast-message">步骤已完成</p>
+    </div>
+</div>
+
+<script type="module">
+import {
+    supabase, showToast, updateTime,
+    loadSopTasks, saveSopTask, uploadPhoto, generateDailyTasks
+} from './supabase.js';
+
+let currentDate = new Date(2026, 5, 13);
+let selectedDate = '2026-06-13';
+let taskData = [];
+let currentTaskId = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    updateTime();
+    setInterval(updateTime, 1000);
+
+    // 生成今日任务
+    await generateDailyTasks(selectedDate);
+    taskData = await loadSopTasks(selectedDate);
+
+    document.getElementById('loading').classList.add('hidden');
+    renderCalendar();
+    renderTasks();
+});
+
+function renderCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    document.getElementById('calendar-month-year').textContent = `${year}年 ${month + 1}月`;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const grid = document.getElementById('calendar-grid');
+    grid.innerHTML = '';
+
+    for (let i = 0; i < firstDay; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'calendar-day empty';
+        grid.appendChild(empty);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const isToday = dateStr === '2026-06-13';
+        const isSelected = dateStr === selectedDate;
+
+        const cell = document.createElement('div');
+        cell.className = `calendar-day relative flex items-center justify-center text-sm font-medium rounded-lg ${isSelected ? 'ring-2 ring-emerald-500 bg-emerald-50' : isToday ? 'today' : 'text-gray-700 hover:bg-gray-50'}`;
+        cell.textContent = day;
+        cell.onclick = () => selectDate(dateStr);
+        grid.appendChild(cell);
+    }
+}
+
+async function selectDate(dateStr) {
+    selectedDate = dateStr;
+    document.getElementById('selected-date-title').textContent = dateStr === '2026-06-13' ? '今日任务' : `${dateStr} 任务`;
+    document.getElementById('selected-date-subtitle').textContent = dateStr;
+
+    // 生成该日任务
+    await generateDailyTasks(dateStr);
+    taskData = await loadSopTasks(dateStr);
+    renderCalendar();
+    renderTasks();
+}
+
+function changeMonth(delta) {
+    currentDate.setMonth(currentDate.getMonth() + delta);
+    renderCalendar();
+}
+
+function renderTasks() {
+    const container = document.getElementById('task-list');
+    const badge = document.getElementById('task-count-badge');
+
+    const total = taskData.length;
+    const completed = taskData.filter(t => t.status === 'completed').length;
+    badge.textContent = `${total - completed} 个待办 / ${total} 个任务`;
+
+    if (taskData.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 mx-auto mb-3">
+                    <i class="fas fa-clipboard-check text-2xl"></i>
+                </div>
+                <p class="text-gray-400 text-sm">该日暂无任务</p>
+                <p class="text-xs text-gray-300 mt-1">请先在排班管理中安排班次</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = taskData.map(task => {
+        const doneSteps = (task.steps || []).filter(s => s.done).length;
+        const totalSteps = (task.steps || []).length;
+        const progress = totalSteps > 0 ? Math.round(doneSteps / totalSteps * 100) : 0;
+        const isCompleted = task.status === 'completed';
+
+        const statusConfig = {
+            completed: { label: '已完成', color: 'bg-emerald-100 text-emerald-700', icon: 'fa-check-circle' },
+            progress: { label: '进行中', color: 'bg-amber-100 text-amber-700', icon: 'fa-spinner fa-spin' },
+            pending: { label: '待开始', color: 'bg-blue-100 text-blue-700', icon: 'fa-clock' }
+        };
+        const s = statusConfig[task.status];
+
+        return `
+            <div class="task-card bg-white rounded-xl p-5 border border-gray-100 ${isCompleted ? 'opacity-70' : ''}">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 ${task.person?.color || 'bg-gray-500'} rounded-xl flex items-center justify-center text-white font-bold text-sm">
+                            ${task.person?.avatar || task.person?.name?.charAt(0) || '?'}
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-gray-800 ${isCompleted ? 'line-through' : ''}">${task.sop_template?.title || '未知任务'}</h4>
+                            <p class="text-sm text-gray-500">${task.person?.name || '未分配'} · ${task.sop_template?.category || ''}</p>
+                        </div>
+                    </div>
+                    <span class="inline-block px-2.5 py-1 rounded-lg text-xs font-medium ${s.color}">
+                        <i class="fas ${s.icon} mr-1"></i>${s.label}
+                    </span>
+                </div>
+
+                <div class="mb-3">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-500">完成进度</span>
+                        <span class="font-bold ${isCompleted ? 'text-emerald-600' : 'text-gray-800'}">${doneSteps}/${totalSteps} 步骤</span>
+                    </div>
+                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-500 ${isCompleted ? 'bg-emerald-500' : 'bg-amber-500'}" style="width: ${progress}%"></div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="openTaskDetail(${task.id})" class="flex-1 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-medium hover:bg-emerald-100 transition-colors">
+                        <i class="fas fa-list-check mr-1"></i> 查看详情
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ===== 任务详情模态框 =====
+function openTaskDetail(taskId) {
+    currentTaskId = taskId;
+    const task = taskData.find(t => t.id === taskId);
+    if (!task) return;
+
+    document.getElementById('task-modal-title').textContent = task.sop_template?.title || '任务详情';
+    document.getElementById('task-modal-subtitle').textContent = `${task.person?.name || ''} · ${task.sop_template?.category || ''} · ${selectedDate}`;
+
+    const container = document.getElementById('task-steps-container');
+    container.innerHTML = (task.steps || []).map((step, idx) => {
+        const isDone = step.done;
+        return `
+            <div class="border rounded-xl p-4 ${isDone ? 'border-emerald-200 bg-emerald-50/50' : 'border-gray-200'}">
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${isDone ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500'}">
+                        ${isDone ? '<i class="fas fa-check"></i>' : idx + 1}
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <h4 class="font-medium text-gray-800 ${isDone ? 'line-through text-gray-400' : ''}">${step.name}</h4>
+                            ${!isDone ? `
+                                <button onclick="completeStep(${taskId}, ${idx})" class="px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-medium hover:bg-emerald-600 transition-colors">
+                                    <i class="fas fa-check mr-1"></i>完成
+                                </button>
+                            ` : `
+                                <span class="text-xs text-emerald-600 font-medium">
+                                    <i class="fas fa-check-circle mr-1"></i>已完成
+                                </span>
+                            `}
+                        </div>
+
+                        ${step.require_photo ? `
+                            <div class="mt-3">
+                                <p class="text-xs text-gray-500 mb-2"><i class="fas fa-camera mr-1"></i> 此步骤需要拍照记录</p>
+                                <div class="step-photo-preview" id="photos-${taskId}-${idx}">
+                                    ${(step.photos || []).map(url => `<img src="${url}" alt="照片" onclick="window.open('${url}', '_blank')">`).join('')}
+                                </div>
+                                ${!isDone ? `
+                                    <div class="photo-upload-zone mt-2" onclick="document.getElementById('photo-input-${taskId}-${idx}').click()">
+                                        <i class="fas fa-cloud-upload-alt text-gray-400 text-lg mb-1"></i>
+                                        <p class="text-xs text-gray-500">点击上传照片</p>
+                                        <input type="file" id="photo-input-${taskId}-${idx}" class="hidden" accept="image/*" onchange="handlePhotoUpload(${taskId}, ${idx}, this)">
+                                    </div>
+                                ` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    openModal('task-modal', 'task-modal-content');
+}
+
+function closeTaskModal() {
+    const modal = document.getElementById('task-modal');
+    const content = document.getElementById('task-modal-content');
+    content.classList.remove('scale-100', 'opacity-100');
+    content.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => { modal.classList.add('hidden'); currentTaskId = null; }, 300);
+}
+
+async function completeStep(taskId, stepIndex) {
+    const task = taskData.find(t => t.id === taskId);
+    if (!task || !task.steps[stepIndex]) return;
+
+    // 检查是否需要拍照
+    if (task.steps[stepIndex].require_photo && (!task.steps[stepIndex].photos || task.steps[stepIndex].photos.length === 0)) {
+        showToast('需要拍照', '此步骤要求上传照片后才能标记完成', 'warning');
+        return;
+    }
+
+    task.steps[stepIndex].done = true;
+    task.steps[stepIndex].completed_at = new Date().toISOString();
+
+    // 检查是否所有步骤完成
+    const allDone = task.steps.every(s => s.done);
+    if (allDone) {
+        task.status = 'completed';
+        task.completed_at = new Date().toISOString();
+        showToast('任务完成', '所有步骤已完成，任务已标记为完成');
+    } else {
+        task.status = 'progress';
+        showToast('步骤完成', `"${task.steps[stepIndex].name}" 已标记完成`);
+    }
+
+    await saveSopTask(task);
+    taskData = await loadSopTasks(selectedDate);
+    renderTasks();
+    openTaskDetail(taskId); // 刷新模态框
+}
+
+async function handlePhotoUpload(taskId, stepIndex, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    // 模拟上传（实际应调用 uploadPhoto）
+    // const url = await uploadPhoto(file, taskId, stepIndex);
+
+    // 模拟：使用 FileReader 预览
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const url = e.target.result;
+        const task = taskData.find(t => t.id === taskId);
+        if (task && task.steps[stepIndex]) {
+            if (!task.steps[stepIndex].photos) task.steps[stepIndex].photos = [];
+            task.steps[stepIndex].photos.push(url);
+            await saveSopTask(task);
+
+            // 刷新照片预览
+            const previewContainer = document.getElementById(`photos-${taskId}-${stepIndex}`);
+            const img = document.createElement('img');
+            img.src = url;
+            img.onclick = () => window.open(url, '_blank');
+            previewContainer.appendChild(img);
+
+            showToast('上传成功', '照片已保存');
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+function openModal(modalId, contentId) {
+    const modal = document.getElementById(modalId);
+    const content = document.getElementById(contentId);
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        content.classList.remove('scale-95', 'opacity-0');
+        content.classList.add('scale-100', 'opacity-100');
+    }, 10);
+}
+
+// 暴露到全局
+window.changeMonth = changeMonth;
+window.selectDate = selectDate;
+window.openTaskDetail = openTaskDetail;
+window.closeTaskModal = closeTaskModal;
+window.completeStep = completeStep;
+window.handlePhotoUpload = handlePhotoUpload;
+</script>
+</body>
+</html>
