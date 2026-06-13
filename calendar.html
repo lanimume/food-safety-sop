@@ -15,8 +15,10 @@
         .step-photo-preview { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
         .step-photo-preview .photo-item { position: relative; width: 80px; height: 80px; }
         .step-photo-preview .photo-item img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb; cursor: pointer; }
-        .step-photo-preview .photo-item .delete-btn { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; background: #ef4444; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: pointer; opacity: 0; transition: opacity 0.2s; }
+        .step-photo-preview .photo-item img:hover { opacity: 0.8; }
+        .step-photo-preview .photo-item .delete-btn { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; background: #ef4444; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: pointer; opacity: 0; transition: opacity 0.2s; z-index: 10; }
         .step-photo-preview .photo-item:hover .delete-btn { opacity: 1; }
+        .step-photo-preview .photo-item .img-error { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f3f4f6; border-radius: 8px; font-size: 12px; color: #9ca3af; }
         .photo-upload-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px dashed #d1d5db; border-radius: 8px; cursor: pointer; color: #6b7280; font-size: 13px; transition: all 0.2s; margin-top: 8px; }
         .photo-upload-btn:hover { border-color: #10b981; color: #10b981; background: #ecfdf5; }
         .task-card { transition: all 0.3s; }
@@ -341,7 +343,6 @@ function renderTasks() {
     }).join('');
 }
 
-// ========== 新增：从 task_photos 表加载步骤图片 ==========
 async function loadStepPhotos(taskId, stepIndex) {
     try {
         const { data, error } = await supabase
@@ -358,7 +359,6 @@ async function loadStepPhotos(taskId, stepIndex) {
     }
 }
 
-// ========== 修改：openTaskDetail 支持图片上传和展示 ==========
 async function openTaskDetail(taskId) {
     currentTaskId = taskId;
     const task = taskData.find(t => t.id === taskId);
@@ -370,7 +370,6 @@ async function openTaskDetail(taskId) {
     const container = document.getElementById('task-steps-container');
     container.innerHTML = '<p class="text-center text-gray-400 py-4">加载步骤中...</p>';
 
-    // 并行加载所有步骤的图片
     const stepPhotosPromises = (task.steps || []).map((_, idx) => loadStepPhotos(taskId, idx));
     const allStepPhotos = await Promise.all(stepPhotosPromises);
 
@@ -405,22 +404,23 @@ async function openTaskDetail(taskId) {
                             </div>
                         ` : (step.note ? `<div class="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded-lg"><i class="fas fa-sticky-note text-gray-400 mr-1"></i>${step.note}</div>` : '')}
 
-                        <!-- ========== 图片上传区域（新增） ========== -->
                         <div class="mt-3">
                             <div class="step-photo-preview" id="photos-${taskId}-${idx}">
                                 ${photos.map(p => `
                                     <div class="photo-item" data-photo-id="${p.id}">
-                                        <img src="${p.photo_url}" alt="照片" onclick="window.open('${p.photo_url}', '_blank')">
-                                        ${!isDone ? `<div class="delete-btn" onclick="deleteStepPhoto(${taskId}, ${idx}, ${p.id}, '${p.photo_url}')" title="删除"><i class="fas fa-times"></i></div>` : ''}
+                                        <img src="${p.photo_url}" alt="照片" 
+                                            onerror="this.parentElement.innerHTML='<div class=\\'img-error\\'><i class=\\'fas fa-image\\'></i></div>'"
+                                            onclick="event.stopPropagation(); window.open('${p.photo_url}', '_blank');">
+                                        ${!isDone ? `<div class="delete-btn" onclick="event.stopPropagation(); deleteStepPhoto(${taskId}, ${idx}, ${p.id}, '${p.photo_url}')" title="删除"><i class="fas fa-times"></i></div>` : ''}
                                     </div>
                                 `).join('')}
                             </div>
                             ${!isDone ? `
-                                <label class="photo-upload-btn" onclick="document.getElementById('photo-input-${taskId}-${idx}').click()">
+                                <label for="photo-input-${taskId}-${idx}" class="photo-upload-btn">
                                     <i class="fas fa-camera"></i>
                                     <span>上传图片</span>
-                                    <input type="file" id="photo-input-${taskId}-${idx}" class="hidden" accept="image/*" onchange="handlePhotoUpload(${taskId}, ${idx}, this)">
                                 </label>
+                                <input type="file" id="photo-input-${taskId}-${idx}" class="hidden" accept="image/*" onchange="handlePhotoUpload(${taskId}, ${idx}, this)">
                             ` : ''}
                         </div>
                     </div>
@@ -447,7 +447,6 @@ async function completeStep(taskId, stepIndex) {
     const noteEl = document.getElementById(`note-${taskId}-${stepIndex}`);
     const note = noteEl ? noteEl.value.trim() : '';
 
-    // 检查是否要求拍照
     if (task.steps[stepIndex].require_photo) {
         const photos = await loadStepPhotos(taskId, stepIndex);
         if (photos.length === 0) {
@@ -481,18 +480,15 @@ async function completeStep(taskId, stepIndex) {
     openTaskDetail(taskId);
 }
 
-// ========== 修改：handlePhotoUpload 上传到 Storage + 记录到 task_photos 表 ==========
 async function handlePhotoUpload(taskId, stepIndex, input) {
     const file = input.files[0];
     if (!file) return;
 
-    // 检查文件类型
     if (!file.type.startsWith('image/')) {
         showToast('格式错误', '请上传图片文件', 'warning');
         return;
     }
 
-    // 检查文件大小（最大 5MB）
     if (file.size > 5 * 1024 * 1024) {
         showToast('文件过大', '图片大小不能超过 5MB', 'warning');
         return;
@@ -501,7 +497,6 @@ async function handlePhotoUpload(taskId, stepIndex, input) {
     showToast('上传中', '正在上传图片...', 'info');
 
     try {
-        // 1. 上传到 Supabase Storage
         const fileExt = file.name.split('.').pop();
         const fileName = `${taskId}_${stepIndex}_${Date.now()}.${fileExt}`;
         const filePath = `task-${taskId}/${fileName}`;
@@ -513,16 +508,22 @@ async function handlePhotoUpload(taskId, stepIndex, input) {
                 upsert: false
             });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw new Error(uploadError.message || '上传失败');
+        }
 
-        // 2. 获取公开 URL
         const { data: urlData } = supabase.storage
             .from('sop-photos')
             .getPublicUrl(filePath);
 
-        const photoUrl = urlData.publicUrl;
+        const photoUrl = urlData?.publicUrl || urlData?.publicURL || urlData?.url;
+        console.log('Photo URL:', photoUrl);
 
-        // 3. 记录到 task_photos 表
+        if (!photoUrl) {
+            throw new Error('无法获取图片 URL');
+        }
+
         const { error: dbError } = await supabase
             .from('task_photos')
             .insert({
@@ -534,14 +535,12 @@ async function handlePhotoUpload(taskId, stepIndex, input) {
 
         if (dbError) throw dbError;
 
-        // 4. 更新本地数据并刷新 UI
         const task = taskData.find(t => t.id === taskId);
         if (task && task.steps[stepIndex]) {
             if (!task.steps[stepIndex].photos) task.steps[stepIndex].photos = [];
             task.steps[stepIndex].photos.push(photoUrl);
         }
 
-        // 重新加载该步骤图片并刷新展示
         await refreshStepPhotos(taskId, stepIndex);
         showToast('上传成功', '照片已保存');
 
@@ -550,11 +549,9 @@ async function handlePhotoUpload(taskId, stepIndex, input) {
         showToast('上传失败', err.message || '图片上传失败，请重试', 'error');
     }
 
-    // 清空 input，允许重复上传同一文件
     input.value = '';
 }
 
-// ========== 新增：刷新单个步骤的图片展示 ==========
 async function refreshStepPhotos(taskId, stepIndex) {
     const photos = await loadStepPhotos(taskId, stepIndex);
     const container = document.getElementById(`photos-${taskId}-${stepIndex}`);
@@ -565,20 +562,20 @@ async function refreshStepPhotos(taskId, stepIndex) {
 
     container.innerHTML = photos.map(p => `
         <div class="photo-item" data-photo-id="${p.id}">
-            <img src="${p.photo_url}" alt="照片" onclick="window.open('${p.photo_url}', '_blank')">
-            ${!isDone ? `<div class="delete-btn" onclick="deleteStepPhoto(${taskId}, ${stepIndex}, ${p.id}, '${p.photo_url}')" title="删除"><i class="fas fa-times"></i></div>` : ''}
+            <img src="${p.photo_url}" alt="照片" 
+                onerror="this.parentElement.innerHTML='<div class=\\'img-error\\'><i class=\\'fas fa-image\\'></i></div>'"
+                onclick="event.stopPropagation(); window.open('${p.photo_url}', '_blank');">
+            ${!isDone ? `<div class="delete-btn" onclick="event.stopPropagation(); deleteStepPhoto(${taskId}, ${stepIndex}, ${p.id}, '${p.photo_url}')" title="删除"><i class="fas fa-times"></i></div>` : ''}
         </div>
     `).join('');
 }
 
-// ========== 新增：删除步骤图片 ==========
 async function deleteStepPhoto(taskId, stepIndex, photoId, photoUrl) {
     if (!confirm('确定删除这张图片吗？')) return;
 
     showToast('删除中', '正在删除图片...', 'info');
 
     try {
-        // 1. 从数据库删除记录
         const { error: dbError } = await supabase
             .from('task_photos')
             .delete()
@@ -586,7 +583,6 @@ async function deleteStepPhoto(taskId, stepIndex, photoId, photoUrl) {
 
         if (dbError) throw dbError;
 
-        // 2. 从 Storage 删除文件（可选，根据 URL 提取路径）
         try {
             const urlObj = new URL(photoUrl);
             const pathMatch = urlObj.pathname.match(/\/sop-photos\/(.+)/);
@@ -597,7 +593,6 @@ async function deleteStepPhoto(taskId, stepIndex, photoId, photoUrl) {
             console.warn('Storage 删除失败（可能已不存在）:', storageErr);
         }
 
-        // 3. 刷新 UI
         await refreshStepPhotos(taskId, stepIndex);
         showToast('删除成功', '图片已删除');
 
