@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="common.css">
+<base target="_blank">
 </head>
 <body class="bg-gray-50 text-gray-800">
 
@@ -165,7 +166,7 @@
             </div>
             <div class="flex gap-3 pt-4">
                 <button onclick="closeShiftModal()" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors">取消</button>
-                <button onclick="saveShift()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-white font-medium hover:bg-emerald-600 transition-colors">保存</button>
+                <button onclick="saveShiftForm()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-white font-medium hover:bg-emerald-600 transition-colors">保存</button>
             </div>
         </div>
     </div>
@@ -398,7 +399,7 @@ function renderShiftSopOptions(selectedIds = []) {
     `).join('');
 }
 
-async function saveShift() {
+async function saveShiftForm() {
     const name = document.getElementById('shift-name').value.trim();
     const description = document.getElementById('shift-desc').value.trim();
     if (!name) { showToast('输入错误', '请输入班次名称', 'error'); return; }
@@ -410,11 +411,11 @@ async function saveShift() {
         if (editingShiftId) {
             const shift = shiftData.find(s => s.id === editingShiftId);
             shift.name = name; shift.color = selectedShiftColor; shift.sop_ids = sopIds; shift.description = description;
-            await window.saveShift(shift);
+            await saveShift(shift);
             showToast('保存成功', '班次信息已更新');
         } else {
             const newShift = { name, color: selectedShiftColor, sop_ids: sopIds, description };
-            const saved = await window.saveShift(newShift);
+            const saved = await saveShift(newShift);
             if (saved) { shiftData.push(saved); showToast('创建成功', '新班次已创建'); }
         }
     } catch (e) {
