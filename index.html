@@ -647,24 +647,45 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 
     // ==================== 初始化 ====================
-    document.addEventListener('DOMContentLoaded', async () => {
-        updateTime();
-        setInterval(updateTime, 1000);
+document.addEventListener('DOMContentLoaded', async () => {
+    updateTime();
+    setInterval(updateTime, 1000);
 
+    try {
+        // 添加超时包装
+        const loadWithTimeout = async (fn, timeout = 5000) => {
+            return Promise.race([
+                fn(),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout')), timeout)
+                )
+            ]);
+        };
+
+        sopData = await loadWithTimeout(loadSop, 5000);
+        personnelData = await loadWithTimeout(loadPersonnel, 5000);
+        shiftData = await loadWithTimeout(loadShifts, 5000);
+        scheduleData = await loadWithTimeout(loadSchedules, 5000);
+        taskData = await loadWithTimeout(loadTasks, 5000);
+    } catch (err) {
+        console.error('Supabase加载失败，使用默认数据:', err);
+        // 如果 Supabase 连接失败，使用内存数据
+        await initDefaultData();
         sopData = await loadSop();
         personnelData = await loadPersonnel();
         shiftData = await loadShifts();
         scheduleData = await loadSchedules();
         taskData = await loadTasks();
+    }
 
-        if (sopData.length === 0) {
-            await initDefaultData();
-            sopData = await loadSop();
-            personnelData = await loadPersonnel();
-            shiftData = await loadShifts();
-            scheduleData = await loadSchedules();
-            taskData = await loadTasks();
-        }
+    if (sopData.length === 0) {
+        await initDefaultData();
+        sopData = await loadSop();
+        personnelData = await loadPersonnel();
+        shiftData = await loadShifts();
+        scheduleData = await loadSchedules();
+        taskData = await loadTasks();
+    }
 
         // 生成今日任务
         await generateTodayTasks();
