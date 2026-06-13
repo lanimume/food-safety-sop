@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人员管理 - 食品安全 SOP 管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="common.css">
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<div id="loading" class="loading-overlay">
+    <div class="w-12 h-12 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
+    <p class="text-gray-600 font-medium">正在加载人员数据...</p>
+</div>
+
+<div class="flex h-screen overflow-hidden">
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20 shadow-lg flex-shrink-0">
+        <div class="p-6 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-emerald-200 shadow-lg">
+                    <i class="fas fa-shield-halved text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-gray-900 leading-tight">食品安全 SOP</h1>
+                    <p class="text-xs text-gray-500">管理系统 v4.0</p>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+            <a href="index.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-chart-pie w-5"></i>数据概览
+            </a>
+            <a href="sop-templates.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-list-check w-5"></i>SOP流程模板
+            </a>
+            <a href="shift-schedule.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-users-gear w-5"></i>排班管理
+            </a>
+            <a href="calendar.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-calendar-days w-5"></i>任务日历
+            </a>
+            <a href="personnel.html" class="nav-item active bg-emerald-50 text-emerald-700 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-users w-5"></i>人员管理
+            </a>
+            <a href="metrics.html" class="nav-item text-gray-600 hover:bg-gray-50 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all">
+                <i class="fas fa-gauge-high w-5"></i>指标监控
+            </a>
+        </nav>
+        <div class="p-4 border-t border-gray-100">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-4 text-white relative overflow-hidden">
+                <div class="relative z-10">
+                    <p class="text-xs opacity-90 mb-1">系统状态</p>
+                    <p class="font-bold text-sm" id="system-status">运行正常</p>
+                    <div class="mt-2 flex items-center gap-2 text-xs opacity-90">
+                        <span class="w-2 h-2 bg-white rounded-full animate-pulse" id="status-dot"></span><span id="status-text">实时同步中</span>
+                    </div>
+                </div>
+                <i class="fas fa-wifi absolute -right-2 -bottom-2 text-6xl opacity-10"></i>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto bg-gray-50/50">
+        <header class="sticky top-0 z-10 glass-effect border-b border-gray-200 px-8 py-4 flex items-center justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800">人员管理</h2>
+                <p class="text-sm text-gray-500 mt-1">管理人员信息与任务分配</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                    <i class="far fa-clock text-emerald-500"></i>
+                    <span id="current-time" class="text-sm font-medium text-gray-700"></span>
+                </div>
+                <div class="flex items-center gap-3 pl-4 border-l border-gray-200">
+                    <div class="w-9 h-9 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold text-sm">管</div>
+                    <div class="hidden md:block">
+                        <p class="text-sm font-medium text-gray-800">管理员</p>
+                        <p class="text-xs text-gray-500">食品安全部</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="p-8 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                            <i class="fas fa-users text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">总人数</p>
+                            <h3 class="text-2xl font-bold text-gray-800" id="stat-total">--</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600">
+                            <i class="fas fa-briefcase text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">今日有任务</p>
+                            <h3 class="text-2xl font-bold text-gray-800" id="stat-active">--</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                            <i class="fas fa-check-circle text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">今日已完成</p>
+                            <h3 class="text-2xl font-bold text-gray-800" id="stat-completed">--</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600">
+                            <i class="fas fa-chart-line text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">平均完成率</p>
+                            <h3 class="text-2xl font-bold text-gray-800" id="stat-rate">--%</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-lg text-gray-800">人员列表</h3>
+                <button onclick="showAddPersonModal()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg shadow-emerald-200 transition-all flex items-center gap-2">
+                    <i class="fas fa-user-plus"></i> 添加人员
+                </button>
+            </div>
+
+            <div id="personnel-grid" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <p class="text-gray-400 text-center py-8 col-span-full">加载中...</p>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <h3 class="font-bold text-lg text-gray-800 mb-6">人员任务完成统计</h3>
+                <div class="h-80">
+                    <canvas id="personStatsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div id="person-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center modal-overlay">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl transform scale-95 opacity-0 transition-all duration-300" id="person-modal-content">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="font-bold text-xl text-gray-800" id="modal-title">添加人员</h3>
+            <button onclick="closePersonModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">姓名 <span class="text-red-500">*</span></label>
+                <input type="text" id="person-name" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all" placeholder="请输入姓名">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">职位</label>
+                <select id="person-role" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all">
+                    <option value="检验员">检验员</option>
+                    <option value="班长">班长</option>
+                    <option value="仓管">仓管</option>
+                    <option value="厨师长">厨师长</option>
+                    <option value="后勤">后勤</option>
+                    <option value="管理员">管理员</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">部门</label>
+                <select id="person-dept" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all">
+                    <option value="进货查验部">进货查验部</option>
+                    <option value="生产部">生产部</option>
+                    <option value="仓储部">仓储部</option>
+                    <option value="后勤部">后勤部</option>
+                    <option value="质检部">质检部</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">联系方式</label>
+                <input type="text" id="person-phone" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all" placeholder="手机号">
+            </div>
+            <div class="flex gap-3 pt-4">
+                <button onclick="closePersonModal()" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors">取消</button>
+                <button onclick="savePerson()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-white font-medium hover:bg-emerald-600 transition-colors">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="delete-person-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center modal-overlay">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl transform scale-95 opacity-0 transition-all duration-300" id="delete-person-content">
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-red-500 mx-auto mb-4">
+                <i class="fas fa-exclamation-triangle text-2xl"></i>
+            </div>
+            <h3 class="font-bold text-lg text-gray-800">确认删除人员</h3>
+            <p class="text-sm text-gray-500 mt-2">删除后该人员的排班和任务记录也会被清除，确定要继续吗？</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="closeDeletePersonModal()" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors">取消</button>
+            <button onclick="confirmDeletePerson()" class="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">删除</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="fixed bottom-6 right-6 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3 max-w-sm">
+    <div class="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 flex-shrink-0">
+        <i class="fas fa-check"></i>
+    </div>
+    <div>
+        <h4 class="font-bold text-gray-800 text-sm" id="toast-title">操作成功</h4>
+        <p class="text-xs text-gray-500 mt-0.5" id="toast-message">人员信息已更新</p>
+    </div>
+</div>
+
+<script src="supabase.js"></script>
+<script>
+let personnelData = [];
+let editingPersonId = null;
+let deletingPersonId = null;
+let chart = null;
+const today = '2026-06-13';
+
+document.addEventListener('DOMContentLoaded', async () => {
+    updateTime();
+    setInterval(updateTime, 1000);
+
+    try {
+        if (typeof supabase !== 'undefined' && supabase.createClient) {
+            window.supabase = supabase.createClient(
+                'https://pgphhfqiyqdnlrqurzvv.supabase.co',
+                'sb_publishable_VD3xRTYLl_0CXCz_SR1jHw_17shJsXj'
+            );
+        } else if (typeof supabase !== 'undefined') {
+            window.supabase = supabase;
+        }
+    } catch (e) {
+        console.error('Supabase 初始化失败:', e);
+        document.getElementById('system-status').textContent = '离线模式';
+        document.getElementById('status-dot').classList.remove('bg-white', 'animate-pulse');
+        document.getElementById('status-dot').classList.add('bg-red-400');
+        document.getElementById('status-text').textContent = '数据库未连接';
+    }
+
+    try {
+        personnelData = await loadPersonnel();
+    } catch (e) {
+        console.error('数据加载失败:', e);
+        showToast('警告', '数据库连接失败，显示离线数据', 'warning');
+    }
+
+    document.getElementById('loading').classList.add('hidden');
+    renderPersonnel();
+    initChart();
+});
+
+function renderPersonnel() {
+    const grid = document.getElementById('personnel-grid');
+    grid.innerHTML = '';
+
+    document.getElementById('stat-total').textContent = personnelData.length;
+
+    if (personnelData.length === 0) {
+        grid.innerHTML = '<p class="text-gray-400 text-center py-8 col-span-full">暂无人员数据</p>';
+        return;
+    }
+
+    personnelData.forEach(person => {
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl p-6 shadow-sm border border-gray-100 card-hover';
+        card.innerHTML = `
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 ${person.color || 'bg-gray-500'} rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                        ${person.avatar || person.name.charAt(0)}
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-800">${person.name}</h3>
+                        <p class="text-sm text-gray-500">${person.role} · ${person.dept}</p>
+                    </div>
+                </div>
+                <div class="flex gap-1">
+                    <button onclick="editPerson(${person.id})" class="w-8 h-8 rounded-lg bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-colors">
+                        <i class="fas fa-pen text-xs"></i>
+                    </button>
+                    <button onclick="deletePersonPrompt(${person.id})" class="w-8 h-8 rounded-lg bg-gray-50 text-gray-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors">
+                        <i class="fas fa-trash text-xs"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="space-y-2 text-sm text-gray-500">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-phone text-xs w-4"></i>
+                    <span>${person.phone || '未填写'}</span>
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+function initChart() {
+    const ctx = document.getElementById('personStatsChart').getContext('2d');
+    chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: personnelData.map(p => p.name),
+            datasets: [{
+                label: '人员数量',
+                data: personnelData.map(() => 1),
+                backgroundColor: personnelData.map(p => {
+                    const colorMap = {
+                        'bg-blue-500': '#3b82f6', 'bg-emerald-500': '#10b981',
+                        'bg-amber-500': '#f59e0b', 'bg-purple-500': '#a855f7',
+                        'bg-red-500': '#ef4444', 'bg-teal-500': '#14b8a6',
+                        'bg-indigo-500': '#6366f1', 'bg-gray-500': '#6b7280'
+                    };
+                    return colorMap[p.color] || '#3b82f6';
+                }),
+                borderRadius: 8,
+                barThickness: 40
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { stepSize: 1 } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function showAddPersonModal() {
+    editingPersonId = null;
+    document.getElementById('modal-title').textContent = '添加人员';
+    document.getElementById('person-name').value = '';
+    document.getElementById('person-phone').value = '';
+    document.getElementById('person-role').selectedIndex = 0;
+    document.getElementById('person-dept').selectedIndex = 0;
+    openModal('person-modal', 'person-modal-content');
+}
+
+function editPerson(id) {
+    const person = personnelData.find(p => p.id === id);
+    if (!person) return;
+    editingPersonId = id;
+    document.getElementById('modal-title').textContent = '编辑人员';
+    document.getElementById('person-name').value = person.name;
+    document.getElementById('person-phone').value = person.phone || '';
+    document.getElementById('person-role').value = person.role;
+    document.getElementById('person-dept').value = person.dept;
+    openModal('person-modal', 'person-modal-content');
+}
+
+function closePersonModal() {
+    const modal = document.getElementById('person-modal');
+    const content = document.getElementById('person-modal-content');
+    content.classList.remove('scale-100', 'opacity-100');
+    content.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => { modal.classList.add('hidden'); }, 300);
+}
+
+async function savePerson() {
+    const name = document.getElementById('person-name').value.trim();
+    const role = document.getElementById('person-role').value;
+    const dept = document.getElementById('person-dept').value;
+    const phone = document.getElementById('person-phone').value.trim();
+
+    if (!name) { showToast('输入错误', '请输入姓名', 'error'); return; }
+
+    const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-purple-500', 'bg-red-500', 'bg-teal-500', 'bg-indigo-500', 'bg-pink-500'];
+
+    try {
+        if (editingPersonId) {
+            const person = personnelData.find(p => p.id === editingPersonId);
+            person.name = name; person.role = role; person.dept = dept; person.phone = phone;
+            await savePersonnel(person);
+            showToast('保存成功', '人员信息已更新');
+        } else {
+            const newPerson = {
+                name, role, dept, phone,
+                avatar: name.charAt(0),
+                color: colors[personnelData.length % colors.length]
+            };
+            const saved = await savePersonnel(newPerson);
+            if (saved) personnelData.push(saved);
+            showToast('添加成功', '新人员已添加');
+        }
+        closePersonModal();
+        renderPersonnel();
+    } catch (e) {
+        showToast('保存失败', '数据库连接异常', 'error');
+    }
+}
+
+function deletePersonPrompt(id) {
+    deletingPersonId = id;
+    openModal('delete-person-modal', 'delete-person-content');
+}
+
+function closeDeletePersonModal() {
+    const modal = document.getElementById('delete-person-modal');
+    const content = document.getElementById('delete-person-content');
+    content.classList.remove('scale-100', 'opacity-100');
+    content.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => { modal.classList.add('hidden'); deletingPersonId = null; }, 300);
+}
+
+async function confirmDeletePerson() {
+    if (!deletingPersonId) return;
+    try {
+        await deletePersonnel(deletingPersonId);
+        personnelData = personnelData.filter(p => p.id !== deletingPersonId);
+        renderPersonnel();
+        showToast('删除成功', '人员已移除');
+    } catch (e) {
+        showToast('删除失败', '数据库连接异常', 'error');
+    }
+    closeDeletePersonModal();
+}
+
+function openModal(modalId, contentId) {
+    const modal = document.getElementById(modalId);
+    const content = document.getElementById(contentId);
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        content.classList.remove('scale-95', 'opacity-0');
+        content.classList.add('scale-100', 'opacity-100');
+    }, 10);
+}
+</script>
+</body>
+</html>
