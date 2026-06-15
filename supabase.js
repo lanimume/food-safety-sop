@@ -221,6 +221,20 @@ async function saveSchedule(schedule) {
 async function deleteSchedule(personId, date) {
     if (!isSupabaseReady()) return;
     try {
+        // 先查询该排班关联的所有任务，清理图片后再删除排班
+        // 避免数据库级联删除 sop_tasks 时跳过了 cleanupTaskPhotos
+        const { data: tasks } = await window.supabase
+            .from('sop_tasks')
+            .select('id')
+            .eq('person_id', personId)
+            .eq('date', date);
+
+        if (tasks && tasks.length > 0) {
+            const taskIds = tasks.map(t => t.id);
+            console.log(`[deleteSchedule] 预清理 ${taskIds.length} 个任务的图片...`);
+            await cleanupTaskPhotos(taskIds);
+        }
+
         await window.supabase.from('schedules').delete().eq('person_id', personId).eq('date', date);
     } catch (e) { handleSupabaseError('deleteSchedule', e); }
 }
@@ -309,12 +323,12 @@ async function cleanupTaskPhotos(taskIds) {
             .from('task_photos')
             .select('id, photo_url')
             .in('task_id', taskIds);
-        
+
         if (photoError) {
             console.error('[cleanupTaskPhotos] 查询照片失败:', photoError);
             return;
         }
-        
+
         if (photos && photos.length > 0) {
             for (const photo of photos) {
                 try {
@@ -327,12 +341,12 @@ async function cleanupTaskPhotos(taskIds) {
                     console.warn('[cleanupTaskPhotos] 删除 storage 图片失败:', storageErr);
                 }
             }
-            
+
             const { error: delPhotoError } = await window.supabase
                 .from('task_photos')
                 .delete()
                 .in('task_id', taskIds);
-            
+
             if (delPhotoError) {
                 console.error('[cleanupTaskPhotos] 删除照片记录失败:', delPhotoError);
             } else {
