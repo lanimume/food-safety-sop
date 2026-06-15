@@ -25,6 +25,7 @@
         .task-card:hover { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="bg-gray-50 text-gray-800">
 
@@ -135,9 +136,7 @@
                                 <p class="text-sm text-gray-500" id="selected-date-subtitle"></p>
                             </div>
                             <div class="flex items-center gap-2">
-                                <button onclick="refreshTasks()" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition-colors" title="重新生成任务">
-                                    <i class="fas fa-sync-alt mr-1"></i>刷新
-                                </button>
+                                <!-- 刷新按钮已移除：排班后任务自动同步生成 -->
                                 <span id="task-count-badge" class="text-xs bg-red-100 text-red-600 px-3 py-1 rounded-lg font-medium">0 个任务</span>
                             </div>
                         </div>
@@ -694,20 +693,8 @@ async function confirmDeleteTask() {
 }
 
 async function refreshTasks() {
-    try {
-        showToast('刷新中', '正在重新生成任务...', 'info');
-        await generateDailyTasks(selectedDate, true);
-        taskData = await loadSopTasks(selectedDate);
-        renderTasks();
-        if (taskData.length === 0) {
-            showToast('无任务', '该日没有可生成的任务，请检查排班和班次SOP关联', 'warning');
-        } else {
-            showToast('刷新完成', `已生成 ${taskData.length} 个任务`);
-        }
-    } catch (e) {
-        console.error('刷新任务失败:', e);
-        showToast('刷新失败', '数据库连接异常', 'error');
-    }
+    // 刷新按钮已移除：排班后任务自动同步生成，无需手动刷新
+    showToast('提示', '排班后任务会自动同步生成，无需手动刷新', 'info');
 }
 
 function openModal(modalId, contentId) {
