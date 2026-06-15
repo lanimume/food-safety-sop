@@ -9,6 +9,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="common.css">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="bg-gray-50 text-gray-800">
 
@@ -525,7 +526,16 @@ async function updateSchedule(personId, date, shiftId) {
                 const idx = scheduleData.findIndex(s => s.person_id === personId && s.date === date);
                 if (idx > -1) { scheduleData[idx] = saved; } else { scheduleData.push(saved); }
                 const shift = shiftData.find(s => s.id === parseInt(shiftId));
-                showToast('排班成功', `已安排 ${shift?.name || ''}，请前往任务日历查看生成的任务`);
+                showToast('排班成功', `已安排 ${shift?.name || ''}`);
+                // 自动为该日期生成任务（不覆盖已有进度）
+                try {
+                    if (typeof generateDailyTasks === 'function') {
+                        await generateDailyTasks(date, false);
+                        showToast('任务已同步', '任务日历已自动更新');
+                    }
+                } catch (genErr) {
+                    console.error('generateDailyTasks error:', genErr);
+                }
             } else {
                 showToast('排班失败', '保存到数据库失败', 'error');
             }
