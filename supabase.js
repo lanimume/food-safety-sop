@@ -329,10 +329,8 @@ async function generateDailyTasks(date, force = false) {
         let existing = await loadSopTasks(date);
         console.log(`[generateDailyTasks] 已有任务: ${existing.length} 个`);
 
-        if (!force && existing.length > 0) {
-            console.log('[generateDailyTasks] 已有任务，跳过生成');
-            return existing;
-        }
+        // 不再因已有任务而整体跳过，改为逐个检查每个排班+SOP组合是否已存在
+        // 这样新增排班时仍能生成对应的新任务，同时保留已有进度
 
         if (force && existing.length > 0) {
             console.log('[generateDailyTasks] 强制重新生成，先删除旧任务...');
