@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="common.css">
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="bg-gray-50 text-gray-800">
 
@@ -519,6 +520,14 @@ async function updateSchedule(personId, date, shiftId) {
             await deleteSchedule(personId, date);
             scheduleData = scheduleData.filter(s => !(s.person_id === personId && s.date === date));
             showToast('已清除', '该日排班已清除');
+            // 清除排班后同步清理该日期任务及图片
+            try {
+                if (typeof generateDailyTasks === 'function') {
+                    await generateDailyTasks(date, false);
+                }
+            } catch (genErr) {
+                console.error('generateDailyTasks error:', genErr);
+            }
         } else {
             const schedule = { person_id: personId, date: date, shift_id: parseInt(shiftId) };
             const saved = await saveSchedule(schedule);
