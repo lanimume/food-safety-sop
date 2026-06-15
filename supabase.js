@@ -283,6 +283,24 @@ async function saveSopTask(task) {
     }
 }
 
+// ==================== 删除 SOP 任务 ====================
+async function deleteSopTask(id) {
+    if (!isSupabaseReady()) return false;
+    try {
+        const { error } = await window.supabase.from('sop_tasks').delete().eq('id', id);
+        if (error) { 
+            console.error('[deleteSopTask] 错误:', error);
+            handleSupabaseError('deleteSopTask', error); 
+            return false; 
+        }
+        return true;
+    } catch (e) { 
+        console.error('[deleteSopTask] 异常:', e);
+        handleSupabaseError('deleteSopTask', e); 
+        return false; 
+    }
+}
+
 // ==================== 生成每日任务（修复版）====================
 async function generateDailyTasks(date, force = false) {
     if (!isSupabaseReady()) {
@@ -345,7 +363,7 @@ async function generateDailyTasks(date, force = false) {
 
             for (const sopId of sopIds) {
                 const key = `${sched.id}-${sopId}`;
-                
+
                 if (existingKeys.has(key)) {
                     console.log(`[generateDailyTasks] 任务已存在: schedule=${sched.id}, sop=${sopId}`);
                     continue;
@@ -425,6 +443,7 @@ window.saveSchedule = saveSchedule;
 window.deleteSchedule = deleteSchedule;
 window.loadSopTasks = loadSopTasks;
 window.saveSopTask = saveSopTask;
+window.deleteSopTask = deleteSopTask;
 window.generateDailyTasks = generateDailyTasks;
 window.isSupabaseReady = isSupabaseReady;
 window.loadPositions = loadPositions;
