@@ -10,6 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="common.css">
+<base target="_blank">
 </head>
 <body class="bg-gray-50 text-gray-800">
 
@@ -179,7 +180,7 @@
             </div>
 
             <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <h3 class="font-bold text-lg text-gray-800 mb-6">人员任务完成统计</h3>
+                <h3 class="font-bold text-lg text-gray-800 mb-6">人员职位分布统计</h3>
                 <div class="h-80">
                     <canvas id="personStatsChart"></canvas>
                 </div>
@@ -206,7 +207,7 @@
                     <input type="text" id="person-id-card" maxlength="18" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all font-mono tracking-wider" placeholder="18位身份证号" onblur="parseIdCardInput()">
                 </div>
             </div>
-            
+
             <div class="grid grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">性别</label>
@@ -411,7 +412,7 @@ function renderPersonnel() {
         const isExpired = person.health_cert_expiry && new Date(person.health_cert_expiry) < new Date();
         const statusColor = person.status === '在职' ? 'text-emerald-500' : 'text-gray-400';
         const statusBg = person.status === '在职' ? 'bg-emerald-50' : 'bg-gray-100';
-        
+
         const card = document.createElement('div');
         card.className = 'bg-white rounded-2xl p-6 shadow-sm border border-gray-100 card-hover';
         card.innerHTML = `
@@ -473,34 +474,64 @@ function renderPersonnel() {
 function initChart() {
     const ctx = document.getElementById('personStatsChart').getContext('2d');
     if (chart) chart.destroy();
-    
-    const activeData = personnelData.filter(p => p.status === '在职');
+
+    // 按职位统计在职人数
+    const activePersonnel = personnelData.filter(p => p.status === '在职');
+    const roleCounts = {};
+    activePersonnel.forEach(p => {
+        const role = p.role || '未分配';
+        roleCounts[role] = (roleCounts[role] || 0) + 1;
+    });
+
+    const labels = Object.keys(roleCounts);
+    const data = Object.values(roleCounts);
+
+    const colors = [
+        '#3b82f6', '#10b981', '#f59e0b', '#a855f7', 
+        '#ef4444', '#14b8a6', '#6366f1', '#ec4899',
+        '#84cc16', '#06b6d4', '#f97316', '#8b5cf6'
+    ];
+
+    const bgColors = labels.map((_, i) => colors[i % colors.length]);
+
     chart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: activeData.map(p => p.name),
+            labels: labels,
             datasets: [{
-                label: '在职人员',
-                data: activeData.map(() => 1),
-                backgroundColor: activeData.map(p => {
-                    const colorMap = {
-                        'bg-blue-500': '#3b82f6', 'bg-emerald-500': '#10b981',
-                        'bg-amber-500': '#f59e0b', 'bg-purple-500': '#a855f7',
-                        'bg-red-500': '#ef4444', 'bg-teal-500': '#14b8a6',
-                        'bg-indigo-500': '#6366f1', 'bg-gray-500': '#6b7280'
-                    };
-                    return colorMap[p.color] || '#3b82f6';
-                }),
+                label: '在职人数',
+                data: data,
+                backgroundColor: bgColors,
                 borderRadius: 8,
                 barThickness: 40
             }]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.parsed.y + ' 人';
+                        }
+                    }
+                }
+            },
             scales: {
-                y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { stepSize: 1 } },
-                x: { grid: { display: false } }
+                y: { 
+                    beginAtZero: true, 
+                    grid: { color: '#f3f4f6' },
+                    ticks: { stepSize: 1 }
+                },
+                x: { 
+                    grid: { display: false },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 0
+                    }
+                }
             }
         }
     });
@@ -510,7 +541,7 @@ function initChart() {
 function parseIdCardInput() {
     const idCard = document.getElementById('person-id-card').value.trim();
     if (!idCard || idCard.length !== 18) return;
-    
+
     const info = parseIdCard(idCard);
     if (info) {
         document.getElementById('person-gender').value = info.gender;
@@ -542,12 +573,12 @@ function maskIdCard(idCard) {
 async function handleHealthCertUpload(input) {
     const file = input.files[0];
     if (!file) return;
-    
+
     if (!file.type.startsWith('image/')) {
         showToast('格式错误', '请上传图片文件', 'error');
         return;
     }
-    
+
     if (file.size > 5 * 1024 * 1024) {
         showToast('文件过大', '图片大小不能超过5MB', 'error');
         return;
@@ -568,20 +599,20 @@ async function handleHealthCertUpload(input) {
             showToast('离线模式', '无法上传图片，请先连接数据库', 'warning');
             return;
         }
-        
+
         const fileExt = file.name.split('.').pop();
         const fileName = `health-cert-${Date.now()}.${fileExt}`;
-        
+
         const { data, error } = await window.supabase.storage
             .from('health-certs')
             .upload(fileName, file, { contentType: file.type });
-            
+
         if (error) throw error;
-        
+
         const { data: { publicUrl } } = window.supabase.storage
             .from('health-certs')
             .getPublicUrl(fileName);
-            
+
         document.getElementById('person-health-cert-url').value = publicUrl;
         showToast('上传成功', '健康证图片已上传');
     } catch (e) {
@@ -611,20 +642,20 @@ function showAddPersonModal() {
     document.getElementById('person-status').value = '在职';
     document.getElementById('person-health-cert-url').value = '';
     removeHealthCert();
-    
+
     // 填充下拉选项
     fillSelectOptions();
-    
+
     openModal('person-modal', 'person-modal-content');
 }
 
 function fillSelectOptions() {
     const roleSelect = document.getElementById('person-role');
     const deptSelect = document.getElementById('person-dept');
-    
+
     roleSelect.innerHTML = '<option value="">请选择</option>' + 
         positionsData.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-    
+
     deptSelect.innerHTML = '<option value="">请选择</option>' + 
         departmentsData.map(d => `<option value="${d.name}">${d.name}</option>`).join('');
 }
@@ -632,7 +663,7 @@ function fillSelectOptions() {
 function editPerson(id) {
     const person = personnelData.find(p => p.id === id);
     if (!person) return;
-    
+
     editingPersonId = id;
     document.getElementById('modal-title').textContent = '编辑人员';
     document.getElementById('person-name').value = person.name;
@@ -643,11 +674,11 @@ function editPerson(id) {
     document.getElementById('person-phone').value = person.phone || '';
     document.getElementById('person-health-expiry').value = person.health_cert_expiry || '';
     document.getElementById('person-status').value = person.status || '在职';
-    
+
     fillSelectOptions();
     document.getElementById('person-role').value = person.role || '';
     document.getElementById('person-dept').value = person.dept || '';
-    
+
     // 健康证图片
     if (person.health_cert_url) {
         document.getElementById('person-health-cert-url').value = person.health_cert_url;
@@ -657,7 +688,7 @@ function editPerson(id) {
     } else {
         removeHealthCert();
     }
-    
+
     openModal('person-modal', 'person-modal-content');
 }
 
@@ -716,7 +747,7 @@ async function savePerson() {
             showToast('添加成功', '新人员已添加');
         }
         closePersonModal();
-        
+
         // 重新加载数据
         personnelData = await loadPersonnel();
         renderPersonnel();
@@ -741,7 +772,25 @@ function closeDeletePersonModal() {
 
 async function confirmDeletePerson() {
     if (!deletingPersonId) return;
+
     try {
+        const person = personnelData.find(p => p.id === deletingPersonId);
+
+        // 1. 先删除健康证图片（如果存在）
+        if (person && person.health_cert_url) {
+            try {
+                const urlObj = new URL(person.health_cert_url);
+                const pathMatch = urlObj.pathname.match(/\/health-certs\/(.+)/);
+                if (pathMatch) {
+                    await window.supabase.storage.from('health-certs').remove([pathMatch[1]]);
+                    console.log('[confirmDeletePerson] 健康证图片已删除');
+                }
+            } catch (storageErr) {
+                console.warn('删除健康证图片失败（可能已不存在）:', storageErr);
+            }
+        }
+
+        // 2. 删除人员数据库记录
         await deletePersonnel(deletingPersonId);
         personnelData = personnelData.filter(p => p.id !== deletingPersonId);
         renderPersonnel();
@@ -790,14 +839,14 @@ async function addManageItem() {
     const input = document.getElementById('manage-input');
     const name = input.value.trim();
     if (!name) return;
-    
+
     // 检查是否已存在
     const exists = manageItems.some(i => i.name === name);
     if (exists) {
         showToast('已存在', '该名称已存在', 'warning');
         return;
     }
-    
+
     try {
         if (manageType === 'position') {
             const saved = await savePosition({ name });
@@ -828,7 +877,7 @@ async function removeManageItem(index) {
         renderManageList();
         return;
     }
-    
+
     try {
         if (manageType === 'position') {
             await deletePosition(item.id);
