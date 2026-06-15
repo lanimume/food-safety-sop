@@ -251,7 +251,7 @@ async function generateDailyTasks(date, force = false) {
         const templates = await loadSopTemplates();
         console.log(`[generateDailyTasks] 加载到 ${templates.length} 个 SOP 模板`);
 
-        const existing = await loadSopTasks(date);
+        let existing = await loadSopTasks(date);
         console.log(`[generateDailyTasks] 已有任务: ${existing.length} 个`);
 
         // 如果已有任务且不是强制重新生成，直接返回已有任务
