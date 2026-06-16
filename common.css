@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+body { font-family: 'Noto Sans SC', sans-serif; }
+
+.glass-effect {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+.card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.metric-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+    border: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.nav-item {
+    position: relative;
+    overflow: hidden;
+}
+.nav-item::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0;
+    height: 100%; width: 3px;
+    background: #10b981;
+    transform: scaleY(0);
+    transition: transform 0.2s;
+}
+.nav-item.active::before {
+    transform: scaleY(1);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.status-badge { animation: fadeIn 0.3s ease-in; }
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+.step-row { animation: slideIn 0.3s ease; }
+
+.modal-overlay { backdrop-filter: blur(4px); }
+
+.loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(255,255,255,0.9);
+    z-index: 100;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transition: opacity 0.3s;
+}
+.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+.step-input:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.schedule-table { overflow-x: auto; }
+.schedule-table th, .schedule-table td { border: 1px solid #e5e7eb; }
+.schedule-table th { background: #f9fafb; position: sticky; top: 0; z-index: 10; }
+.schedule-table th:first-child { position: sticky; left: 0; z-index: 20; background: #f9fafb; }
+.schedule-table td:first-child { position: sticky; left: 0; background: white; z-index: 10; font-weight: 600; }
+
+.shift-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 500;
+}
+
+.photo-upload-zone {
+    border: 2px dashed #d1d5db;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.photo-upload-zone:hover {
+    border-color: #10b981;
+    background: #ecfdf5;
+}
+.photo-upload-zone.has-photo {
+    border-color: #10b981;
+    background: #ecfdf5;
+}
