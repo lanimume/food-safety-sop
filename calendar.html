@@ -273,10 +273,11 @@ function renderCalendar() {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const isToday = dateStr === new Date().toISOString().split('T')[0];
         const isSelected = dateStr === selectedDate;
+        const hasTask = taskData.some(t => t.date === dateStr);
 
         const cell = document.createElement('div');
         cell.className = `calendar-day relative flex items-center justify-center text-sm font-medium rounded-lg ${isSelected ? 'ring-2 ring-emerald-500 bg-emerald-50' : isToday ? 'today' : 'text-gray-700 hover:bg-gray-50'}`;
-        cell.textContent = day;
+        cell.innerHTML = `${day}${hasTask ? '<span class="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>' : ''}`;
         cell.onclick = () => selectDate(dateStr);
         grid.appendChild(cell);
     }
@@ -377,7 +378,7 @@ function renderTasks() {
 
                 <div class="flex gap-2">
                     <button onclick="openTaskDetail(${task.id})" class="flex-1 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-medium hover:bg-emerald-100 transition-colors">
-                        <i class="fas fa-list-check mr-1"></i> 查看详情
+                        <i class="fas fa-list-check mr-1"></i> ${selectedDate === new Date().toISOString().split('T')[0] ? '查看详情' : '查看（仅当天可编辑）'}
                     </button>
                 </div>
             </div>
@@ -406,8 +407,10 @@ async function openTaskDetail(taskId) {
     const task = taskData.find(t => t.id === taskId);
     if (!task) return;
 
+    const isToday = selectedDate === new Date().toISOString().split('T')[0];
+
     document.getElementById('task-modal-title').textContent = task.sop_template?.title || '任务详情';
-    document.getElementById('task-modal-subtitle').textContent = `${task.person?.name || ''} · ${task.sop_template?.category || ''} · ${selectedDate}`;
+    document.getElementById('task-modal-subtitle').textContent = `${task.person?.name || ''} · ${task.sop_template?.category || ''} · ${selectedDate}${!isToday ? '（仅查看模式）' : ''}`;
 
     const container = document.getElementById('task-steps-container');
     container.innerHTML = '<p class="text-center text-gray-400 py-4">加载步骤中...</p>';
@@ -429,18 +432,18 @@ async function openTaskDetail(taskId) {
                     <div class="flex-1">
                         <div class="flex items-center justify-between">
                             <h4 class="font-medium text-gray-800 ${isDone ? 'line-through text-gray-400' : ''}">${step.name}</h4>
-                            ${!isDone ? `
+                            ${isToday && !isDone ? `
                                 <button onclick="completeStep(${taskId}, ${idx})" class="px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-medium hover:bg-emerald-600 transition-colors">
                                     <i class="fas fa-check mr-1"></i>完成
                                 </button>
                             ` : `
-                                <span class="text-xs text-emerald-600 font-medium">
-                                    <i class="fas fa-check-circle mr-1"></i>已完成
+                                <span class="text-xs ${isDone ? 'text-emerald-600' : 'text-gray-400'} font-medium">
+                                    <i class="fas ${isDone ? 'fa-check-circle' : 'fa-lock'} mr-1"></i>${isDone ? '已完成' : '仅当天可编辑'}
                                 </span>
                             `}
                         </div>
 
-                        ${!isDone ? `
+                        ${isToday && !isDone ? `
                             <div class="mt-2">
                                 <textarea id="note-${taskId}-${idx}" rows="2" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none resize-none" placeholder="输入执行备注（可选）">${step.note || ''}</textarea>
                             </div>
@@ -460,11 +463,11 @@ async function openTaskDetail(taskId) {
                                         <img src="${p.photo_url}" alt="照片" 
                                             onerror="this.parentElement.innerHTML='<div class=\\'img-error\\'><i class=\\'fas fa-image\\'></i></div>'"
                                             onclick="event.stopPropagation(); window.open('${p.photo_url}', '_blank');">
-                                        ${!isDone ? `<div class="delete-btn" onclick="event.stopPropagation(); deleteStepPhoto(${taskId}, ${idx}, ${p.id}, '${p.photo_url}')" title="删除"><i class="fas fa-times"></i></div>` : ''}
+                                        ${isToday && !isDone ? `<div class="delete-btn" onclick="event.stopPropagation(); deleteStepPhoto(${taskId}, ${idx}, ${p.id}, '${p.photo_url}')" title="删除"><i class="fas fa-times"></i></div>` : ''}
                                     </div>
                                 `).join('')}
                             </div>
-                            ${!isDone ? `
+                            ${isToday && !isDone ? `
                                 <label for="photo-input-${taskId}-${idx}" class="photo-upload-btn">
                                     <i class="fas fa-camera"></i>
                                     <span>上传图片</span>
@@ -492,6 +495,12 @@ function closeTaskModal() {
 async function completeStep(taskId, stepIndex) {
     const task = taskData.find(t => t.id === taskId);
     if (!task || !task.steps[stepIndex]) return;
+
+    // 只能编辑当天的任务
+    if (selectedDate !== new Date().toISOString().split('T')[0]) {
+        showToast('操作受限', '只能编辑当天的任务', 'warning');
+        return;
+    }
 
     const noteEl = document.getElementById(`note-${taskId}-${stepIndex}`);
     const note = noteEl ? noteEl.value.trim() : '';
@@ -535,6 +544,13 @@ async function completeStep(taskId, stepIndex) {
 }
 
 async function handlePhotoUpload(taskId, stepIndex, input) {
+    // 只能编辑当天的任务
+    if (selectedDate !== new Date().toISOString().split('T')[0]) {
+        showToast('操作受限', '只能编辑当天的任务', 'warning');
+        input.value = '';
+        return;
+    }
+
     const file = input.files[0];
     if (!file) return;
 
@@ -625,6 +641,11 @@ async function refreshStepPhotos(taskId, stepIndex) {
 }
 
 async function deleteStepPhoto(taskId, stepIndex, photoId, photoUrl) {
+    // 只能编辑当天的任务
+    if (selectedDate !== new Date().toISOString().split('T')[0]) {
+        showToast('操作受限', '只能编辑当天的任务', 'warning');
+        return;
+    }
     if (!confirm('确定删除这张图片吗？')) return;
 
     showToast('删除中', '正在删除图片...', 'info');
