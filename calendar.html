@@ -28,7 +28,6 @@
 <base target="_blank">
     <script src="auth.js"></script>
 <base target="_blank">
-<base target="_blank">
 </head>
 <body class="bg-gray-50 text-gray-800">
 
@@ -206,7 +205,6 @@
 let currentDate = new Date();
 let selectedDate = new Date().toISOString().split('T')[0];
 let taskData = [];
-let monthTaskData = []; // 整月任务数据（用于日历小红点）
 let currentTaskId = null;
 let deletingTaskId = null;
 
@@ -244,13 +242,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const myPersonId = authGuard.getCurrentPersonId();
             taskData = taskData.filter(t => t.person_id === myPersonId);
         }
-
-        // 加载整月任务数据用于日历小红点
-        monthTaskData = await loadMonthSopTasks(currentDate.getFullYear(), currentDate.getMonth());
-        if (!authGuard.isAdmin()) {
-            const myPersonId = authGuard.getCurrentPersonId();
-            monthTaskData = monthTaskData.filter(t => t.person_id === myPersonId);
-        }
     } catch (e) {
         console.error('任务加载失败:', e);
         showToast('警告', '数据库连接失败，任务数据可能不完整', 'warning');
@@ -281,11 +272,10 @@ function renderCalendar() {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const isToday = dateStr === new Date().toISOString().split('T')[0];
         const isSelected = dateStr === selectedDate;
-        const hasTask = monthTaskData.some(t => t.date === dateStr);
 
         const cell = document.createElement('div');
         cell.className = `calendar-day relative flex items-center justify-center text-sm font-medium rounded-lg ${isSelected ? 'ring-2 ring-emerald-500 bg-emerald-50' : isToday ? 'today' : 'text-gray-700 hover:bg-gray-50'}`;
-        cell.innerHTML = `${day}${hasTask ? '<span class="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>' : ''}`;
+        cell.textContent = day;
         cell.onclick = () => selectDate(dateStr);
         grid.appendChild(cell);
     }
@@ -305,17 +295,6 @@ async function selectDate(dateStr) {
             const myPersonId = authGuard.getCurrentPersonId();
             taskData = taskData.filter(t => t.person_id === myPersonId);
         }
-
-        // 如果切换了月份，重新加载整月数据
-        const newDate = new Date(dateStr);
-        if (newDate.getFullYear() !== currentDate.getFullYear() || newDate.getMonth() !== currentDate.getMonth()) {
-            currentDate = newDate;
-            monthTaskData = await loadMonthSopTasks(currentDate.getFullYear(), currentDate.getMonth());
-            if (!authGuard.isAdmin()) {
-                const myPersonId = authGuard.getCurrentPersonId();
-                monthTaskData = monthTaskData.filter(t => t.person_id === myPersonId);
-            }
-        }
     } catch (e) {
         console.error('任务加载失败:', e);
         showToast('警告', '任务加载失败', 'warning');
@@ -324,20 +303,8 @@ async function selectDate(dateStr) {
     renderTasks();
 }
 
-async function changeMonth(delta) {
+function changeMonth(delta) {
     currentDate.setMonth(currentDate.getMonth() + delta);
-
-    // 加载新月份的整月任务数据
-    try {
-        monthTaskData = await loadMonthSopTasks(currentDate.getFullYear(), currentDate.getMonth());
-        if (!authGuard.isAdmin()) {
-            const myPersonId = authGuard.getCurrentPersonId();
-            monthTaskData = monthTaskData.filter(t => t.person_id === myPersonId);
-        }
-    } catch (e) {
-        console.error('整月任务加载失败:', e);
-    }
-
     renderCalendar();
 }
 
@@ -409,7 +376,7 @@ function renderTasks() {
 
                 <div class="flex gap-2">
                     <button onclick="openTaskDetail(${task.id})" class="flex-1 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-medium hover:bg-emerald-100 transition-colors">
-                        <i class="fas fa-list-check mr-1"></i> ${selectedDate === new Date().toISOString().split('T')[0] ? '查看详情' : '查看（仅当天可编辑）'}
+                        <i class="fas fa-list-check mr-1"></i> 查看详情
                     </button>
                 </div>
             </div>
@@ -438,10 +405,8 @@ async function openTaskDetail(taskId) {
     const task = taskData.find(t => t.id === taskId);
     if (!task) return;
 
-    const isToday = selectedDate === new Date().toISOString().split('T')[0];
-
     document.getElementById('task-modal-title').textContent = task.sop_template?.title || '任务详情';
-    document.getElementById('task-modal-subtitle').textContent = `${task.person?.name || ''} · ${task.sop_template?.category || ''} · ${selectedDate}${!isToday ? '（仅查看模式）' : ''}`;
+    document.getElementById('task-modal-subtitle').textContent = `${task.person?.name || ''} · ${task.sop_template?.category || ''} · ${selectedDate}`;
 
     const container = document.getElementById('task-steps-container');
     container.innerHTML = '<p class="text-center text-gray-400 py-4">加载步骤中...</p>';
@@ -463,18 +428,18 @@ async function openTaskDetail(taskId) {
                     <div class="flex-1">
                         <div class="flex items-center justify-between">
                             <h4 class="font-medium text-gray-800 ${isDone ? 'line-through text-gray-400' : ''}">${step.name}</h4>
-                            ${isToday && !isDone ? `
+                            ${!isDone ? `
                                 <button onclick="completeStep(${taskId}, ${idx})" class="px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-medium hover:bg-emerald-600 transition-colors">
                                     <i class="fas fa-check mr-1"></i>完成
                                 </button>
                             ` : `
-                                <span class="text-xs ${isDone ? 'text-emerald-600' : 'text-gray-400'} font-medium">
-                                    <i class="fas ${isDone ? 'fa-check-circle' : 'fa-lock'} mr-1"></i>${isDone ? '已完成' : '仅当天可编辑'}
+                                <span class="text-xs text-emerald-600 font-medium">
+                                    <i class="fas fa-check-circle mr-1"></i>已完成
                                 </span>
                             `}
                         </div>
 
-                        ${isToday && !isDone ? `
+                        ${!isDone ? `
                             <div class="mt-2">
                                 <textarea id="note-${taskId}-${idx}" rows="2" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none resize-none" placeholder="输入执行备注（可选）">${step.note || ''}</textarea>
                             </div>
@@ -494,11 +459,11 @@ async function openTaskDetail(taskId) {
                                         <img src="${p.photo_url}" alt="照片" 
                                             onerror="this.parentElement.innerHTML='<div class=\\'img-error\\'><i class=\\'fas fa-image\\'></i></div>'"
                                             onclick="event.stopPropagation(); window.open('${p.photo_url}', '_blank');">
-                                        ${isToday && !isDone ? `<div class="delete-btn" onclick="event.stopPropagation(); deleteStepPhoto(${taskId}, ${idx}, ${p.id}, '${p.photo_url}')" title="删除"><i class="fas fa-times"></i></div>` : ''}
+                                        ${!isDone ? `<div class="delete-btn" onclick="event.stopPropagation(); deleteStepPhoto(${taskId}, ${idx}, ${p.id}, '${p.photo_url}')" title="删除"><i class="fas fa-times"></i></div>` : ''}
                                     </div>
                                 `).join('')}
                             </div>
-                            ${isToday && !isDone ? `
+                            ${!isDone ? `
                                 <label for="photo-input-${taskId}-${idx}" class="photo-upload-btn">
                                     <i class="fas fa-camera"></i>
                                     <span>上传图片</span>
@@ -523,36 +488,9 @@ function closeTaskModal() {
     setTimeout(() => { modal.classList.add('hidden'); currentTaskId = null; }, 300);
 }
 
-// 加载整月任务数据（用于日历小红点）
-async function loadMonthSopTasks(year, month) {
-    if (typeof supabase === 'undefined' || !window.supabase) return [];
-    try {
-        const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-        const end = `${year}-${String(month + 1).padStart(2, '0')}-${new Date(year, month + 1, 0).getDate()}`;
-        const { data, error } = await window.supabase.from('sop_tasks')
-            .select('id, date, person_id')
-            .gte('date', start)
-            .lte('date', end);
-        if (error) {
-            console.error('[loadMonthSopTasks] 错误:', error);
-            return [];
-        }
-        return data || [];
-    } catch (e) {
-        console.error('[loadMonthSopTasks] 异常:', e);
-        return [];
-    }
-}
-
 async function completeStep(taskId, stepIndex) {
     const task = taskData.find(t => t.id === taskId);
     if (!task || !task.steps[stepIndex]) return;
-
-    // 只能编辑当天的任务
-    if (selectedDate !== new Date().toISOString().split('T')[0]) {
-        showToast('操作受限', '只能编辑当天的任务', 'warning');
-        return;
-    }
 
     const noteEl = document.getElementById(`note-${taskId}-${stepIndex}`);
     const note = noteEl ? noteEl.value.trim() : '';
@@ -596,13 +534,6 @@ async function completeStep(taskId, stepIndex) {
 }
 
 async function handlePhotoUpload(taskId, stepIndex, input) {
-    // 只能编辑当天的任务
-    if (selectedDate !== new Date().toISOString().split('T')[0]) {
-        showToast('操作受限', '只能编辑当天的任务', 'warning');
-        input.value = '';
-        return;
-    }
-
     const file = input.files[0];
     if (!file) return;
 
@@ -693,11 +624,6 @@ async function refreshStepPhotos(taskId, stepIndex) {
 }
 
 async function deleteStepPhoto(taskId, stepIndex, photoId, photoUrl) {
-    // 只能编辑当天的任务
-    if (selectedDate !== new Date().toISOString().split('T')[0]) {
-        showToast('操作受限', '只能编辑当天的任务', 'warning');
-        return;
-    }
     if (!confirm('确定删除这张图片吗？')) return;
 
     showToast('删除中', '正在删除图片...', 'info');
@@ -837,6 +763,19 @@ function updateTime() {
 }
 </script>
 
+
+            <div id="password-error" class="hidden text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg">
+                <i class="fas fa-exclamation-circle mr-1"></i><span id="password-error-text"></span>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="closePasswordModal()" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors">取消</button>
+                <button onclick="saveNewPassword()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-white font-medium hover:bg-emerald-600 transition-colors">确认修改</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
 
 </body>
 </html>
