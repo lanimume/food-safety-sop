@@ -79,8 +79,14 @@ class AuthGuard {
             navContainer.appendChild(a);
         });
 
+        const changePwdBtn = document.createElement('button');
+        changePwdBtn.className = 'nav-item text-gray-600 hover:bg-blue-50 hover:text-blue-600 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all mt-4 border-t border-gray-100 pt-4';
+        changePwdBtn.innerHTML = '<i class="fas fa-key w-5"></i>修改密码';
+        changePwdBtn.onclick = () => { if (typeof openChangePasswordModal === 'function') openChangePasswordModal(); };
+        navContainer.appendChild(changePwdBtn);
+
         const logoutBtn = document.createElement('button');
-        logoutBtn.className = 'nav-item text-gray-600 hover:bg-red-50 hover:text-red-600 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all mt-4 border-t border-gray-100 pt-4';
+        logoutBtn.className = 'nav-item text-gray-600 hover:bg-red-50 hover:text-red-600 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all';
         logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt w-5"></i>退出登录';
         logoutBtn.onclick = () => this.logout();
         navContainer.appendChild(logoutBtn);
