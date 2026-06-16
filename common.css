@@ -59,7 +59,7 @@ body { font-family: 'Noto Sans SC', sans-serif; }
     align-items: center; justify-content: center;
     transition: opacity 0.3s;
 }
-.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.loading-overlay.hidden { display: none !important; }
 
 .step-input:focus {
     border-color: #10b981;
