@@ -543,9 +543,16 @@ async function loadAdmins() {
 async function saveAdmin(admin) {
     if (!isSupabaseReady()) { showToast('离线模式', '无法保存到数据库', 'warning'); return null; }
     try {
-        const { data, error } = await window.supabase.from('admins').upsert(admin).select();
-        if (error) { console.error('saveAdmin error:', error); return null; }
-        return data?.[0];
+        // 新记录用 insert，编辑用 update
+        if (admin.id) {
+            const { data, error } = await window.supabase.from('admins').update(admin).eq('id', admin.id).select();
+            if (error) { console.error('saveAdmin error:', error); return null; }
+            return data?.[0];
+        } else {
+            const { data, error } = await window.supabase.from('admins').insert(admin).select();
+            if (error) { console.error('saveAdmin error:', error); return null; }
+            return data?.[0];
+        }
     } catch (e) { console.error('saveAdmin error:', e); return null; }
 }
 
