@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指标监控 - 标准化作业管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .progress-ring { transform: rotate(-90deg); transform-origin: 50% 50%; }
+        .month-picker::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.4); }
+        .export-btn { transition: all 0.3s; }
+        .export-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -4px rgba(16, 185, 129, 0.3); }
+        .metric-card { transition: all 0.3s; }
+        .metric-card:hover { transform: translateY(-2px); }
+        .data-table th { background: #f9fafb; font-weight: 600; font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+        .data-table td { font-size: 0.8rem; }
+        .data-table tr:hover { background: #f9fafb; }
+        .cell-complete { background: #dcfce7; color: #15803d; font-weight: 600; }
+        .cell-partial { background: #fef3c7; color: #92400e; }
+        .cell-pending { background: #f3f4f6; color: #9ca3af; }
+        .cell-none { background: transparent; color: #d1d5db; }
+    </style>
+    <script src="auth.js"></script>
+<base target="_blank">
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<div id="loading" class="loading-overlay">
+    <div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
+    <p class="text-gray-600 font-medium">正在加载指标数据...</p>
+</div>
+
+<div class="flex h-screen overflow-hidden">
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20 shadow-lg flex-shrink-0">
+        <div class="p-6 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center text-white shadow-indigo-200 shadow-lg">
+                    <i class="fas fa-shield-halved text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-gray-900 leading-tight">标准化作业管理</h1>
+                    <p class="text-xs text-gray-500">管理系统 v5.0</p>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto" id="nav-container">
+            <!-- 导航由 auth.js 动态渲染 -->
+        </nav>
+        <div class="p-4 border-t border-gray-100">
+            <div class="bg-gradient-to-r from-indigo-500 to-teal-600 rounded-xl p-4 text-white relative overflow-hidden">
+                <div class="relative z-10">
+                    <p class="text-xs opacity-90 mb-1">系统状态</p>
+                    <p class="font-bold text-sm" id="system-status">运行正常</p>
+                    <div class="mt-2 flex items-center gap-2 text-xs opacity-90">
+                        <span class="w-2 h-2 bg-white rounded-full animate-pulse" id="status-dot"></span><span id="status-text">实时同步中</span>
+                    </div>
+                </div>
+                <i class="fas fa-wifi absolute -right-2 -bottom-2 text-6xl opacity-10"></i>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto bg-gray-50/50">
+        <header class="sticky top-0 z-10 glass-effect border-b border-gray-200 px-8 py-4 flex items-center justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800">指标监控</h2>
+                <p class="text-sm text-gray-500 mt-1">按月追踪人员任务执行与完成质量</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleTheme()" class="theme-toggle-btn" title="切换深浅模式">
+    <i class="fas fa-moon"></i>
+    <i class="fas fa-sun"></i>
+</button>
+                <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                    <i class="far fa-clock text-indigo-500"></i>
+                    <span id="current-time" class="text-sm font-medium text-gray-700"></span>
+                </div>
+                <div class="flex items-center gap-3 pl-4 border-l border-gray-200">
+                    <div class="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold text-sm" id="user-avatar">管</div>
+                    <div class="hidden md:block">
+                        <p class="text-sm font-medium text-gray-800" id="user-name">管理员</p>
+                        <p class="text-xs text-gray-500">食品安全部</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="p-8 space-y-6">
+            <!-- 月份选择 + 导出区 -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center justify-between flex-wrap gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-calendar-alt text-indigo-500 text-lg"></i>
+                        <span class="font-medium text-gray-700">统计月份</span>
+                    </div>
+                    <input type="month" id="month-picker" class="month-picker px-4 py-2 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm font-medium text-gray-700 bg-white" onchange="onMonthChange()">
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs text-gray-400" id="data-range-info">数据范围：--</span>
+                    <button onclick="exportMonthlyData()" class="export-btn bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg shadow-indigo-200 flex items-center gap-2">
+                        <i class="fas fa-file-csv"></i> 导出 CSV
+                    </button>
+
+                </div>
+            </div>
+
+            <!-- 核心 KPI 卡片 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="metric-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">当月总任务</p>
+                            <h3 class="text-3xl font-bold text-gray-800" id="kpi-total-tasks">--</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                            <i class="fas fa-clipboard-list text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-400">
+                        <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-600 font-medium" id="kpi-total-shifts">-- 个班次</span>
+                        <span>涉及排班</span>
+                    </div>
+                </div>
+
+                <div class="metric-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">任务完成率</p>
+                            <h3 class="text-3xl font-bold text-gray-800" id="kpi-completion-rate">--%</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                            <i class="fas fa-check-double text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-indigo-500 rounded-full transition-all duration-700" id="kpi-completion-bar" style="width: 0%"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">目标: 95%</p>
+                </div>
+
+                <div class="metric-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">步骤达标率</p>
+                            <h3 class="text-3xl font-bold text-gray-800" id="kpi-step-rate">--%</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600">
+                            <i class="fas fa-tasks text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-amber-500 rounded-full transition-all duration-700" id="kpi-step-bar" style="width: 0%"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">目标: 90%</p>
+                </div>
+
+                <div class="metric-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">活跃人员</p>
+                            <h3 class="text-3xl font-bold text-gray-800" id="kpi-active-persons">--</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600">
+                            <i class="fas fa-users text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-400">
+                        <span class="px-2 py-0.5 rounded bg-purple-50 text-purple-600 font-medium" id="kpi-avg-tasks">--</span>
+                        <span>人均任务数</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 图表区 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg text-gray-800">每日任务完成趋势</h3>
+                        <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-lg">当月每天</span>
+                    </div>
+                    <div class="h-72">
+                        <canvas id="dailyTrendChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg text-gray-800">人员完成率排名</h3>
+                        <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-lg">当月累计</span>
+                    </div>
+                    <div class="h-72">
+                        <canvas id="personRankChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 任务类型分布 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <h3 class="font-bold text-lg text-gray-800 mb-4">SOP 分类分布</h3>
+                    <div class="h-56">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 lg:col-span-2">
+                    <h3 class="font-bold text-lg text-gray-800 mb-4">步骤拍照合规率</h3>
+                    <div class="h-56">
+                        <canvas id="photoComplianceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 详细数据表格 -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="font-bold text-lg text-gray-800">人员每日完成明细</h3>
+                        <p class="text-sm text-gray-500 mt-1">绿色=全部完成，黄色=部分完成，灰色=未执行</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-400">
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-indigo-100 border border-indigo-300"></span> 全部完成</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-amber-100 border border-amber-300"></span> 部分完成</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-gray-100 border border-gray-300"></span> 未执行</span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto rounded-xl border border-gray-200">
+                    <table class="w-full data-table" id="detail-table">
+                        <thead id="detail-table-head"></thead>
+                        <tbody id="detail-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div id="toast" class="fixed bottom-6 right-6 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3 max-w-sm">
+    <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 flex-shrink-0">
+        <i class="fas fa-check"></i>
+    </div>
+    <div>
+        <h4 class="font-bold text-gray-800 text-sm" id="toast-title">操作成功</h4>
+        <p class="text-xs text-gray-500 mt-0.5" id="toast-message">指标已更新</p>
+    </div>
+</div>
+
+<script src="supabase.js"></script>
+<script>
+let charts = {};
+let currentMonthData = {
+    year: new Date().getFullYear(),
+    month: new Date().getMonth(),
+    tasks: [],
+    schedules: [],
+    personnel: [],
+    shifts: [],
+    templates: []
+};
+
+// 初始化
+document.addEventListener('DOMContentLoaded', async () => {
+    updateTime();
+    setInterval(updateTime, 1000);
+
+    // 权限检查
+    const authorized = await authGuard.init();
+    if (!authorized) return;
+
+    // 初始化 Supabase
+    try {
+        if (typeof supabase !== 'undefined' && supabase.createClient) {
+            window.supabase = supabase.createClient(
+                'https://pgphhfqiyqdnlrqurzvv.supabase.co',
+                'sb_publishable_VD3xRTYLl_0CXCz_SR1jHw_17shJsXj'
+            );
+        } else if (typeof supabase !== 'undefined') {
+            window.supabase = supabase;
+        }
+    } catch (e) {
+        console.error('Supabase 初始化失败:', e);
+        document.getElementById('system-status').textContent = '离线模式';
+        document.getElementById('status-dot').classList.remove('bg-white', 'animate-pulse');
+        document.getElementById('status-dot').classList.add('bg-red-400');
+        document.getElementById('status-text').textContent = '数据库未连接';
+    }
+
+    // 设置默认月份为当前月
+    const now = new Date();
+    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    document.getElementById('month-picker').value = monthStr;
+
+    // 加载数据
+    await loadMonthData(now.getFullYear(), now.getMonth());
+
+    document.getElementById('loading').classList.add('hidden');
+});
+
+// ==================== 数据加载 ====================
+async function loadMonthData(year, month) {
+    currentMonthData.year = year;
+    currentMonthData.month = month;
+
+    const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const end = `${year}-${String(month + 1).padStart(2, '0')}-${new Date(year, month + 1, 0).getDate()}`;
+    document.getElementById('data-range-info').textContent = `数据范围：${start} 至 ${end}`;
+
+    try {
+        // 并行加载所有相关数据
+        const [personnel, shifts, templates] = await Promise.all([
+            loadPersonnel(),
+            loadShifts(),
+            loadSopTemplates()
+        ]);
+
+        currentMonthData.personnel = personnel;
+        currentMonthData.shifts = shifts;
+        currentMonthData.templates = templates;
+
+        // 加载当月所有排班
+        const schedules = await loadSchedules(month, year);
+        currentMonthData.schedules = schedules;
+
+        // 加载当月所有任务（带关联数据）
+        const { data: tasksData, error: tasksError } = await window.supabase
+            .from('sop_tasks')
+            .select(`
+                *,
+                sop_templates: sop_template_id (title, category, steps),
+                personnel: person_id (name, avatar, color)
+            `)
+            .gte('date', start)
+            .lte('date', end)
+            .order('date', { ascending: true });
+
+        if (tasksError) throw tasksError;
+
+        currentMonthData.tasks = (tasksData || []).map(t => ({
+            ...t,
+            steps: t.steps || [],
+            sop_template: t.sop_templates,
+            person: t.personnel
+        }));
+
+        console.log(`[metrics] 加载完成：${currentMonthData.tasks.length} 个任务, ${schedules.length} 条排班, ${personnel.length} 个人员`);
+
+        updateKPIs();
+        initCharts();
+        renderDetailTable();
+
+    } catch (e) {
+        console.error('数据加载失败:', e);
+        showToast('警告', '数据库连接失败，显示离线数据', 'warning');
+    }
+}
+
+async function onMonthChange() {
+    const picker = document.getElementById('month-picker');
+    const [year, month] = picker.value.split('-').map(Number);
+    if (!year || !month) return;
+
+    document.getElementById('loading').classList.remove('hidden');
+    await loadMonthData(year, month - 1);
+    document.getElementById('loading').classList.add('hidden');
+}
+
+// ==================== KPI 计算 ====================
+function updateKPIs() {
+    const { tasks, schedules, personnel } = currentMonthData;
+    const daysInMonth = new Date(currentMonthData.year, currentMonthData.month + 1, 0).getDate();
+
+    // 1. 当月总任务数
+    const totalTasks = tasks.length;
+    document.getElementById('kpi-total-tasks').textContent = totalTasks;
+
+    // 关联的班次种类数
+    const shiftIds = new Set(schedules.map(s => s.shift_id));
+    document.getElementById('kpi-total-shifts').textContent = `${shiftIds.size} 个班次`;
+
+    // 2. 任务完成率（status === 'completed'）
+    const completedTasks = tasks.filter(t => t.status === 'completed').length;
+    const completionRate = totalTasks > 0 ? Math.round(completedTasks / totalTasks * 100) : 0;
+    document.getElementById('kpi-completion-rate').textContent = completionRate + '%';
+    document.getElementById('kpi-completion-bar').style.width = completionRate + '%';
+
+    // 3. 步骤达标率（所有步骤中 done 的比例）
+    let totalSteps = 0;
+    let doneSteps = 0;
+    tasks.forEach(t => {
+        const steps = t.steps || [];
+        totalSteps += steps.length;
+        doneSteps += steps.filter(s => s.done).length;
+    });
+    const stepRate = totalSteps > 0 ? Math.round(doneSteps / totalSteps * 100) : 0;
+    document.getElementById('kpi-step-rate').textContent = stepRate + '%';
+    document.getElementById('kpi-step-bar').style.width = stepRate + '%';
+
+    // 4. 活跃人员（当月有排班的人员）
+    const activePersonIds = new Set(schedules.map(s => s.person_id));
+    document.getElementById('kpi-active-persons').textContent = activePersonIds.size;
+
+    // 人均任务数
+    const avgTasks = activePersonIds.size > 0 ? (totalTasks / activePersonIds.size).toFixed(1) : 0;
+    document.getElementById('kpi-avg-tasks').textContent = avgTasks;
+}
+
+// ==================== 图表初始化 ====================
+function initCharts() {
+    destroyCharts();
+    initDailyTrendChart();
+    initPersonRankChart();
+    initCategoryChart();
+    initPhotoComplianceChart();
+}
+
+function destroyCharts() {
+    Object.values(charts).forEach(c => { if (c) c.destroy(); });
+    charts = {};
+}
+
+// 1. 每日任务完成趋势
+function initDailyTrendChart() {
+    const { year, month, tasks } = currentMonthData;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const labels = [];
+    const completedData = [];
+    const totalData = [];
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        labels.push(`${d}日`);
+        const dayTasks = tasks.filter(t => t.date === dateStr);
+        totalData.push(dayTasks.length);
+        completedData.push(dayTasks.filter(t => t.status === 'completed').length);
+    }
+
+    const ctx = document.getElementById('dailyTrendChart').getContext('2d');
+    charts.dailyTrend = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: '已完成任务',
+                    data: completedData,
+                    borderColor: '#4f46e5',
+                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#4f46e5'
+                },
+                {
+                    label: '总任务数',
+                    data: totalData,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                    fill: false,
+                    tension: 0.4,
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', align: 'end' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = totalData[context.dataIndex];
+                            const completed = completedData[context.dataIndex];
+                            const rate = total > 0 ? Math.round(completed / total * 100) : 0;
+                            return `${context.dataset.label}: ${context.parsed.y} (${rate}%)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { stepSize: 1 } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+// 2. 人员完成率排名（横向柱状图）
+function initPersonRankChart() {
+    const { tasks, personnel } = currentMonthData;
+
+    // 计算每个人的完成率
+    const personStats = personnel.map(p => {
+        const pTasks = tasks.filter(t => t.person_id === p.id);
+        const total = pTasks.length;
+        const completed = pTasks.filter(t => t.status === 'completed').length;
+        const rate = total > 0 ? Math.round(completed / total * 100) : 0;
+        return { name: p.name, total, completed, rate };
+    }).filter(p => p.total > 0).sort((a, b) => b.rate - a.rate);
+
+    const ctx = document.getElementById('personRankChart').getContext('2d');
+    charts.personRank = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: personStats.map(p => p.name),
+            datasets: [{
+                label: '完成率 (%)',
+                data: personStats.map(p => p.rate),
+                backgroundColor: personStats.map(p => {
+                    if (p.rate >= 95) return '#4f46e5';
+                    if (p.rate >= 80) return '#f59e0b';
+                    return '#ef4444';
+                }),
+                borderRadius: 6,
+                barThickness: 20
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const p = personStats[context.dataIndex];
+                            return `完成 ${p.completed}/${p.total} 个任务 (${p.rate}%)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { beginAtZero: true, max: 100, grid: { color: '#f3f4f6' } },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+// 3. SOP 分类分布（饼图）
+function initCategoryChart() {
+    const { tasks } = currentMonthData;
+    const categoryCount = {};
+    tasks.forEach(t => {
+        const cat = t.sop_template?.category || '未分类';
+        categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+    });
+
+    const labels = Object.keys(categoryCount);
+    const data = Object.values(categoryCount);
+    const colors = ['#3b82f6', '#4f46e5', '#f59e0b', '#a855f7', '#ef4444', '#14b8a6', '#6366f1'];
+
+    const ctx = document.getElementById('categoryChart').getContext('2d');
+    charts.category = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                data,
+                backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { padding: 15, usePointStyle: true, font: { size: 11 } } }
+            }
+        }
+    });
+}
+
+// 4. 步骤拍照合规率（按 SOP 分类统计 require_photo 步骤的拍照上传率）
+function initPhotoComplianceChart() {
+    const { tasks, templates } = currentMonthData;
+
+    // 按分类统计：需要拍照的步骤中，实际上传了照片的比例
+    const catStats = {};
+
+    tasks.forEach(task => {
+        const cat = task.sop_template?.category || '未分类';
+        const templateSteps = task.sop_template?.steps || [];
+        const taskSteps = task.steps || [];
+
+        if (!catStats[cat]) {
+            catStats[cat] = { required: 0, uploaded: 0 };
+        }
+
+        taskSteps.forEach((step, idx) => {
+            const templateStep = templateSteps[idx];
+            if (templateStep && templateStep.require_photo) {
+                catStats[cat].required++;
+                // 检查是否上传了照片（通过 task_photos 表或 step.photos 数组）
+                const hasPhotos = step.photos && step.photos.length > 0;
+                if (hasPhotos) {
+                    catStats[cat].uploaded++;
+                }
+            }
+        });
+    });
+
+    const labels = Object.keys(catStats);
+    const complianceData = labels.map(cat => {
+        const s = catStats[cat];
+        return s.required > 0 ? Math.round(s.uploaded / s.required * 100) : 0;
+    });
+    const requiredData = labels.map(cat => catStats[cat].required);
+
+    const ctx = document.getElementById('photoComplianceChart').getContext('2d');
+    charts.photoCompliance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: '拍照合规率 (%)',
+                    data: complianceData,
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 6,
+                    barThickness: 24,
+                    yAxisID: 'y'
+                },
+                {
+                    label: '需拍照步骤数',
+                    data: requiredData,
+                    backgroundColor: '#e5e7eb',
+                    borderRadius: 6,
+                    barThickness: 24,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', align: 'end' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (context.dataset.label === '拍照合规率 (%)') {
+                                const idx = context.dataIndex;
+                                const cat = labels[idx];
+                                const s = catStats[cat];
+                                return `${context.dataset.label}: ${context.parsed.y}% (${s.uploaded}/${s.required})`;
+                            }
+                            return `${context.dataset.label}: ${context.parsed.y}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: { color: '#f3f4f6' },
+                    title: { display: true, text: '合规率 (%)' }
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    grid: { display: false },
+                    title: { display: true, text: '步骤数' }
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+// ==================== 详细数据表格 ====================
+function renderDetailTable() {
+    const { year, month, tasks, personnel, schedules } = currentMonthData;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const thead = document.getElementById('detail-table-head');
+    const tbody = document.getElementById('detail-table-body');
+
+    // 构建表头：人员 | 1日 | 2日 | ... | 31日 | 汇总
+    let headHtml = '<tr><th class="px-3 py-3 text-left sticky left-0 bg-gray-50 z-10 min-w-[100px]">人员</th>';
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const isToday = dateStr === new Date().toISOString().split('T')[0];
+        headHtml += `<th class="px-2 py-3 text-center min-w-[50px] ${isToday ? 'text-indigo-600 bg-indigo-50' : ''}">${d}</th>`;
+    }
+    headHtml += '<th class="px-3 py-3 text-center min-w-[80px]">完成率</th></tr>';
+    thead.innerHTML = headHtml;
+
+    // 只显示当月有排班的人员
+    const activePersonIds = new Set(schedules.map(s => s.person_id));
+    const activePersons = personnel.filter(p => activePersonIds.has(p.id));
+
+    if (activePersons.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${daysInMonth + 2}" class="text-center py-8 text-gray-400">该月暂无排班数据</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = activePersons.map(person => {
+        let rowHtml = `<td class="px-3 py-2.5 font-medium text-gray-800 sticky left-0 bg-white z-10 border-r border-gray-100">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 ${person.color || 'bg-gray-500'} rounded-lg flex items-center justify-center text-white text-xs font-bold">${person.avatar || person.name.charAt(0)}</div>
+                <span class="whitespace-nowrap">${person.name}</span>
+            </div>
+        </td>`;
+
+        let personTotalSteps = 0;
+        let personDoneSteps = 0;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dayTasks = tasks.filter(t => t.person_id === person.id && t.date === dateStr);
+
+            if (dayTasks.length === 0) {
+                rowHtml += '<td class="px-1 py-2.5 text-center cell-none">-</td>';
+                continue;
+            }
+
+            // 汇总该日所有任务的步骤
+            let dayTotal = 0;
+            let dayDone = 0;
+            dayTasks.forEach(t => {
+                const steps = t.steps || [];
+                dayTotal += steps.length;
+                dayDone += steps.filter(s => s.done).length;
+            });
+
+            personTotalSteps += dayTotal;
+            personDoneSteps += dayDone;
+
+            let cellClass = 'cell-pending';
+            let cellText = `${dayDone}/${dayTotal}`;
+
+            if (dayTotal === 0) {
+                cellClass = 'cell-none';
+                cellText = '-';
+            } else if (dayDone === dayTotal) {
+                cellClass = 'cell-complete';
+            } else if (dayDone > 0) {
+                cellClass = 'cell-partial';
+            }
+
+            rowHtml += `<td class="px-1 py-2.5 text-center ${cellClass} cursor-pointer hover:opacity-80 transition-opacity" title="${person.name} ${dateStr}: 完成 ${dayDone}/${dayTotal} 步骤">${cellText}</td>`;
+        }
+
+        const rate = personTotalSteps > 0 ? Math.round(personDoneSteps / personTotalSteps * 100) : 0;
+        let rateColor = 'text-gray-500';
+        if (rate >= 95) rateColor = 'text-indigo-600';
+        else if (rate >= 80) rateColor = 'text-amber-600';
+        else if (rate > 0) rateColor = 'text-red-500';
+
+        rowHtml += `<td class="px-3 py-2.5 text-center font-bold ${rateColor}">${rate}%</td></tr>`;
+        return rowHtml;
+    }).join('');
+}
+
+// ==================== 数据导出 ====================
+function exportMonthlyData() {
+    const { year, month, tasks, personnel, schedules } = currentMonthData;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthStr = `${year}年${month + 1}月`;
+
+    // 只导出当月有排班的人员
+    const activePersonIds = new Set(schedules.map(s => s.person_id));
+    const activePersons = personnel.filter(p => activePersonIds.has(p.id));
+
+    if (activePersons.length === 0) {
+        showToast('导出失败', '该月没有排班数据，无法导出', 'warning');
+        return;
+    }
+
+    exportCSV(monthStr, year, month, daysInMonth, activePersons, tasks);
+}
+
+function exportCSV(monthStr, year, month, daysInMonth, persons, tasks) {
+    // BOM 用于 Excel 正确识别 UTF-8
+    let csv = '\uFEFF';
+
+    // 汇总信息
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.status === 'completed').length;
+    let totalSteps = 0, doneSteps = 0;
+    tasks.forEach(t => {
+        const steps = t.steps || [];
+        totalSteps += steps.length;
+        doneSteps += steps.filter(s => s.done).length;
+    });
+
+    csv += `标准化作业管理系统 - 月度执行报告\n`;
+    csv += `统计月份,${monthStr}\n`;
+    csv += `生成时间,${new Date().toLocaleString('zh-CN')}\n`;
+    csv += `总任务数,${totalTasks}\n`;
+    csv += `已完成任务,${completedTasks}\n`;
+    csv += `任务完成率,${totalTasks > 0 ? Math.round(completedTasks / totalTasks * 100) : 0}%\n`;
+    csv += `总步骤数,${totalSteps}\n`;
+    csv += `已完成步骤,${doneSteps}\n`;
+    csv += `步骤达标率,${totalSteps > 0 ? Math.round(doneSteps / totalSteps * 100) : 0}%\n`;
+    csv += `\n`;
+
+    // 表头
+    csv += '人员姓名,职位,部门';
+    for (let d = 1; d <= daysInMonth; d++) {
+        csv += `,${month + 1}月${d}日`;
+    }
+    csv += ',总步骤,完成步骤,完成率,评价\n';
+
+    // 数据行 - 使用制表符前缀防止 Excel 将 "9/9" 识别为日期
+    persons.forEach(person => {
+        let personTotal = 0;
+        let personDone = 0;
+        let row = `${person.name},${person.role || '-'},${person.dept || '-'}`;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dayTasks = tasks.filter(t => t.person_id === person.id && t.date === dateStr);
+
+            if (dayTasks.length === 0) {
+                row += ',-';
+            } else {
+                let dayTotal = 0;
+                let dayDone = 0;
+                dayTasks.forEach(t => {
+                    const steps = t.steps || [];
+                    dayTotal += steps.length;
+                    dayDone += steps.filter(s => s.done).length;
+                });
+                personTotal += dayTotal;
+                personDone += dayDone;
+                // 在值前面加制表符 \t，阻止 Excel 自动格式转换
+                row += `,\t${dayDone}\/${dayTotal}`;
+            }
+        }
+
+        const rate = personTotal > 0 ? Math.round(personDone / personTotal * 100) : 0;
+        let evaluation = '待改进';
+        if (rate >= 95) evaluation = '优秀';
+        else if (rate >= 80) evaluation = '良好';
+        else if (rate >= 60) evaluation = '合格';
+
+        row += `,${personTotal},${personDone},${rate}%,${evaluation}\n`;
+        csv += row;
+    });
+
+    // 下载
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `SOP执行报告_${monthStr}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast('导出成功', `已下载 ${monthStr} 执行报告 CSV`, 'success');
+}
+
+</script>
+
+<!-- 主题切换初始化 -->
+<script>
+(function() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+})();
+
+function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+        html.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+    } else {
+        html.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+    }
+}
+</script>
+</body>
+</html>
